@@ -1,0 +1,73 @@
+---
+title: ''
+shorttitle: 
+leftheader: 
+author: 
+  - name: Matti Vuorre
+    affiliation: 1
+    corresponding: yes
+    address: Department of Social Psychology, Tilburg University
+    email: m.j.vuorre@tilburguniversity.edu
+affiliation:
+  - id: 1
+    institution: Department of Social Psychology, Tilburg University
+abstract: |
+  
+keywords: 
+authornote: |
+  \noindent \textbf{Working paper. Proceed with caution.}
+wordcount: "`r wordcountaddin:::word_count(filename = 'ms.Rmd')`"
+bibliography: references.bib
+floatsintext: yes
+numbersections: false
+linenumbers: no
+draft: no
+mask: no
+figurelist: no
+tablelist: no
+footnotelist: no
+documentclass: apa7
+classoption: jou
+header-includes:
+  - |
+    \usepackage{float}
+    \setlength{\parskip}{4pt}
+output: 
+  papaja::apa6_pdf:
+    number_sections: true
+    keep_tex: false
+    highlight: kate
+  papaja::apa6_docx: 
+    number_sections: true
+    keep_tex: false
+---
+
+```{r setup, include = FALSE}
+# Packages
+library(tidyverse)
+
+# Output options
+opts_chunk$set(
+  eval = TRUE,
+  cache = TRUE,
+  warning = FALSE,
+  error = TRUE,
+  message = FALSE
+)
+
+# Plotting options
+theme_set(
+  theme_linedraw(base_size = 12) +
+    theme(
+      strip.background = element_rect(fill = "gray90", color = "gray90"),
+      strip.text = element_text(color = "black", hjust = 0),
+      panel.grid = element_blank()
+    )
+)
+
+```
+ 
+# References {-}
+
+::: {#refs custom-style="Bibliography"}
+:::
