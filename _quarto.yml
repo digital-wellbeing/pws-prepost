@@ -1,0 +1,15 @@
+title: "Changes in well-being during video game play: A case study of PowerWash Simulator"
+authors:
+  - Matti Vuorre
+  - Nick Ballou
+  - Andrew K. Przybylski
+execute:
+  echo: false
+  message: false
+  include: false
+format:
+  pdf:
+    documentclass: scrartcl
+    classoption: twocolumn
+    fontfamily: libertinus
+    papersize: a4
