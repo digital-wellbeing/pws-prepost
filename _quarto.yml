@@ -1,15 +1,31 @@
-title: "Changes in well-being during video game play: A case study of PowerWash Simulator"
+title: "Changes in mood during video game play: A case study of PowerWash Simulator"
 authors:
-  - Matti Vuorre
-  - Nick Ballou
-  - Andrew K. Przybylski
-execute:
-  echo: false
-  message: false
-  include: false
+  - name: Matti Vuorre
+    orcid: 0000-0001-5052-066X
+    email: mjvuorre@uvt.nl
+    url: https://vuorre.netlify.app
+    affiliation:
+      - name: Tilburg University
+        url: https://www.tilburguniversity.edu/staff/m-j-vuorre
+  - name: Nick Ballou
+    orcid: 0000-0003-4126-0696
+    affiliation:
+      - name: University of Oxford
+  - name: Andrew K. Przybylski
+    orcid: 0000-0001-5547-2185
+    affiliation:
+      - name: University of Oxford
+
 format:
   pdf:
     documentclass: scrartcl
     classoption: twocolumn
-    fontfamily: libertinus
     papersize: a4
+    fig-align: center
+    fig-width: 8
+    pagestyle: headings
+    section-number: true
+    geometry:
+      - top=20mm
+      - left=20mm
+      - heightrounded

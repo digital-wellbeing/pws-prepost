@@ -1,0 +1,42 @@
+---
+subtitle: Supplementary analysis file
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    toc-title: Contents
+    theme: materia
+    mainfont: LibertinusSansRegular
+    monofont: FiraCodeRegular
+    code-fold: true
+    # code-link: true # Slow
+    code-tools: true
+    header-includes: |
+      <link rel="stylesheet" media="screen" href="https://fontlibrary.org//face/fira-code" type="text/css"/>
+      <link rel="stylesheet" media="screen" href="https://fontlibrary.org//face/libertinus-sans" type="text/css"/> 
+---
+
+```{r document-options}
+#| include: false
+knitr::opts_chunk$set(
+  message = FALSE,
+  cache = TRUE,
+  warning = FALSE,
+  echo = TRUE
+)
+```
+
+This document shows the output of all our supplementary analyses.
+
+# Session info
+
+```{r}
+cat(
+  "This output from",
+  "\nFile:", knitr::current_input(),
+  "\nCommit: ", gert::git_commit_id(),
+  "\nRepo:", gert::git_remote_info()$url
+)
+sessionInfo()
+```
+

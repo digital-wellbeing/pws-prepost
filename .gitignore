@@ -6,5 +6,8 @@
 data-raw/
 data/
 *.pdf
+*.html
+*_cache/
+*_files/
 
 /.quarto/
