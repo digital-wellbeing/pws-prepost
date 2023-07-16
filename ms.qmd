@@ -1,12 +1,46 @@
 ---
-abstract: Abstract
+abstract: Although video games receive immense attention as potential carriers of both positive and negative psychological effects, literature on games' effects remain mixed. One reason for this, we believe, is that the effects of games---if any---might be short lived and transient. To capture potential effects of games during play itself, we queried XXX players mood at the start of XXX gameplay sessions and in XXX subsequent moods. Critically, mood was reported in game in a modified version of a commercially available game. We found X Y and Z but surprisingly not XYZ. Implications. Statements.
+date: 2023-07-18
+format:
+  pdf:
+    documentclass: scrartcl
+    classoption: twocolumn
+    fontfamily: libertinus
+    fontsize: 10pt
+    papersize: a4
+    fig-align: center
+    fig-width: 8
+    pagestyle: headings
+    section-number: true
+    geometry:
+      - top=20mm
+      - left=20mm
+      - right=20mm
+      - bottom=30mm
+      - heightrounded
+    include-in-header:
+      - text: |
+          \setlength{\columnsep}{10mm}
+          \setkomafont{title}{\normalfont\bfseries}
+          \addtokomafont{title}{\normalfont}
+          \addtokomafont{section}{\normalfont}
 ---
 
-```{r}
-#| message: false
+```{r setup}
+#| include: false
 
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE,
+  include = FALSE
+)
+```
+
+
+```{r packages}
 library(tidyverse)
 ```
 
 
-
+# Bibliography
