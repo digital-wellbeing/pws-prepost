@@ -26,7 +26,370 @@ knitr::opts_chunk$set(
 )
 ```
 
-This document shows the output of all our supplementary analyses.
+This document shows the output of all our supplementary analyses including data cleaning. To get the raw data run `make data`.
+
+```{r}
+#| label: packages
+#| code-summary: R Packages
+#| cache: false
+
+library(patchwork)
+library(gt)
+library(modelr)
+library(scales)
+library(broom)
+library(ggdist)
+library(distributional)
+library(tidyverse)
+
+theme_set(
+  theme_linedraw() +
+    theme(
+      strip.background = element_rect(fill = NA, color = NA), 
+      strip.text = element_text(colour = "black", hjust = 0), 
+      panel.grid = element_blank()
+    )
+)
+```
+
+# Data cleaning
+
+We first load the relevant variables from the raw data file. We also rescale the raw mood reports to proportions.
+
+```{r}
+#| label: data-read
+#| message: false
+
+dat <- read_csv(
+  "data/study_prompt_answered.csv",
+  col_select = c(
+    pid, 
+    time = Time_utc, 
+    duration = CurrentSessionLength,
+    prompt = LastStudyPromptType, 
+    mood = response
+  )
+) |> 
+  mutate(
+    pid = factor(pid),
+    mood = mood / 1000
+  )
+dat
+```
+
+We then create a variable that identifies unique sessions, using the heuristics indicated in the code below
+
+```{r}
+#| label: clean-sessions
+#| code-fold: show
+#| include: true
+
+# Create sessions
+dat <- dat |> 
+  arrange(pid, time) |> 
+  mutate(
+    i = row_number(),
+    # Observation is in a new session if this...
+    new_session = 
+      # is the first total observation,
+      i == 1 |
+      # session duration is zero,
+      (duration == 0) | 
+      # session duration is less than previous session duration (ticker has reset),
+      (duration < lag(duration, default = 0)) | 
+      # or if more than 30 minutes since previous observation.
+      (time > lag(time) + minutes(30)),
+    # Session number is the cumulative sum of new sessions...
+    session = cumsum(new_session),
+    # ... per person
+    .by = pid
+  ) |> 
+  select(-c(i, new_session))
+dat
+```
+
+We filter out all other reports except mood ("Wellbeing"), then keep only sessions that had a "pre" game measure of mood at time zero and at least one more mood report.
+
+```{r}
+
+dat <- dat |> filter(prompt == "Wellbeing") |> select(-prompt)
+
+# Count of data with all wellbeing observations
+dat_total_wellbeing <- dat |> 
+  summarise(
+    n_total = n(),
+    n_players = length(unique(pid))
+  )
+
+dat <- dat |> 
+  mutate(
+    session_has_pre = duration[1] == 0,
+    session_has_post = sum(!is.na(mood)) > 1,
+    .by = c(pid, session)
+  )
+  
+dat |> 
+  count(session_has_pre, session_has_post) |> 
+  mutate(p = n / sum(n))
+
+dat <- dat |> 
+  filter(session_has_pre, session_has_post) |> 
+  select(!contains("_has_"))
+```
+
+```{r}
+bind_rows(
+  "Total" = dat_total_wellbeing,
+  "This study" = dat |> 
+    summarise(
+      n_total = n(),
+      n_players = length(unique(pid))
+    ),
+  .id = "Data"
+)
+```
+
+
+The data look like in @tbl-data.
+
+```{r}
+#| label: tbl-data
+#| tbl-cap: First few rows of the data.
+
+dat |> 
+  slice(1:10) |> 
+  gt() |> 
+  fmt_datetime(time) |> 
+  cols_align("left") |> 
+  opt_stylize(6)
+```
+
+We then summarise the raw values of session durations and numbers of sessions in @fig-sessions. 
+
+```{r}
+#| label: fig-sessions
+#| fig-height: 5
+#| fig-cap: '**A**. Raw session durations. **B**. Session durations after trimming top 1%. **C**. Raw numbers of sessions per participant. **D**. As C, but after trimming participants in the top 1% on number of sessions.'
+
+p0 <- dat |> 
+  ggplot() +
+  scale_x_continuous(
+    expand = expansion(c(0.01, 0.1)),
+  ) +
+  scale_y_continuous(
+    expand = expansion(c(0.01, 0.1)),
+  ) +
+  geom_histogram(
+    col = "dodgerblue4",
+    fill = "dodgerblue1",
+    linewidth = .25
+  )
+
+p_durations <- p0 +
+  aes(duration) +
+  labs(x = "Session duration (minutes)", y = "Observations")
+
+p_durations_99 <- p_durations %+%
+  filter(dat, duration < quantile(duration, .99))
+
+dat_sessions <- dat |> 
+  summarise(
+    sessions = max(session),
+    .by = pid
+  )
+
+p_sessions <- p0 %+% 
+  dat_sessions +
+  aes(sessions) +
+  labs(x = "Sessions", y = "Participants")
+
+p_sessions_99 <- p_sessions %+% 
+  filter(p_sessions$data, sessions < quantile(sessions, .99))
+
+(p_durations | p_durations_99) / 
+  (p_sessions | p_sessions_99) +
+  plot_annotation(tag_level = "A")
+```
+
+Based on these very long tails of implausible values (especially session duration), we trim at 99%.
+
+```{r}
+dat <- dat |> 
+  filter(duration < quantile(duration, .99)) |> 
+  right_join(
+    dat_sessions |> 
+      filter(sessions < quantile(sessions, .99)) |> 
+      select(pid)
+  )
+```
+
+Here is a scatterplot of the raw trimmed data.
+
+```{r}
+#| label: fig-scatter
+#| fig-cap: Scatterplot of mood on duration
+
+dat |> 
+  ggplot() +
+  scale_y_continuous(
+    "Mood",
+    expand = expansion(0.01)
+  ) +
+  scale_x_continuous(
+    "Session duration (minutes)",
+    expand = expansion(0.01)
+  ) +
+  aes(duration, mood) +
+  geom_point(
+    col = "dodgerblue",
+    alpha = .2,
+    size = .8
+  )
+```
+
+We then save this dataset
+
+```{r}
+dat |> 
+  write_rds("data/mood.rds")
+```
+
+
+# Descriptives
+
+## Demographics
+
+```{r}
+#| echo: true
+#| include: true
+
+read_csv(
+  "data/demographics.csv", 
+  col_select = c(pid, country, gender, age)
+) |> 
+  filter(pid %in% unique(dat$pid)) |> 
+  write_rds("data/demographics.rds")
+demographics <- read_rds("data/demographics.rds")
+demographics
+```
+
+```{r}
+#| label: tbl-demographics
+#| tbl-cap: Demographics
+#| tbl-subcap: 
+#|   - "Countries of origin"
+#|   - "Gender responses"
+#| layout-ncol: 2
+
+count(demographics, country, sort = TRUE) |> 
+  mutate(p = percent(n / sum(n), .1)) |> 
+  gt()
+demographics |> 
+  mutate(gender = fct_lump_min(gender, 2)) |> 
+  count(gender, sort = TRUE) |> 
+  mutate(p = percent(n / sum(n), .1)) |> 
+  gt()
+```
+
+```{r}
+#| label: fig-age
+#| fig-height: 3
+#| fig-cap: Age distribution
+
+p0 %+%
+  demographics +
+  aes(age)
+```
+
+# Modelling strategy
+
+Here's our thinking of the modelling strategy at this point. Although this is not a pre-post experiment, it helps to label the setup as such:
+
+- We rescale the original mood values from 0-1000 to 0-1 for easier interpretation
+- We model mood reports for row *i*, person *j*, and session *k* with a normal distribution censored at 0 & 1
+- We model the mean $\eta_{ijk}$ on an intercept (mood at pre-measure) and slope (mood difference btwn post and pre) with population level effects, and session and person deviations that are multivariate normal distributed
+- We also model the residual deviation: random intercepts by person and probably by session too.
+
+Here is a sketch of this analysis for one person
+
+```{r}
+#| label: fig-example
+#| fig-cap: Sketch of the modelling strategy for one participant
+#| fig-height: 3
+library(lme4)
+library(latex2exp)
+
+dat <- dat |> 
+  mutate(
+    i = row_number(),
+    i = factor(i == 1, levels = c(TRUE, FALSE), labels = c("pre", "post")),
+    .by = c(pid, session)
+  )
+
+tmp <- dat |> 
+  filter(pid == "p10004") |> 
+  mutate(session = str_glue("{pid} (session: {session})"))
+x <- lmer(
+  mood ~ 0 + i + (0 + i | session), data = tmp 
+)
+
+# Ugly code >>> no code
+newx <- tmp |> 
+  data_grid(duration = seq_range(duration, 10), i, session)
+newx$.fitted <- predict(x, newdata = newx)
+
+newy <- tmp |> 
+  data_grid(duration = seq_range(duration, 10), i)
+newy$.fitted <- predict(x, newdata = newy, re.form = NA)
+newy <- newy |> 
+  mutate(session = "p10004 (all data)")
+tmp2 <- tmp |> 
+  mutate(session = "p10004 (all data)")
+
+tmp <- bind_rows(tmp, tmp2)
+newx <- bind_rows(newx, newy)
+
+labels <- coef(x)$session |> 
+  as.data.frame() |> 
+  rownames_to_column("session") |> 
+  mutate(duration = 50)
+
+labels2 <- fixef(x) |> t() |> 
+  data.frame() |> 
+  mutate(session = "p10004 (all data)", duration = 50)
+
+labels <- bind_rows(labels, labels2)
+
+tmp |> 
+  mutate(session = fct_inorder(session)) |> 
+  ggplot() +
+  aes(duration, mood, col = i) +
+  scale_color_brewer(
+    "Pre-session measure",
+    palette = "Set1",
+    aesthetics = c("color", "fill")
+  ) +
+  scale_x_continuous(
+    "Session duration (mins)"
+  ) +
+  scale_y_continuous(
+    "Mood",
+    limits = c(0, 1)
+  ) +
+  geom_line(
+    data = newx |> mutate(session = fct_inorder(session)),
+    aes(y = .fitted)
+  ) +
+  geom_segment(
+    data = labels |> mutate(session = fct_inorder(session)),
+    aes(x = duration, xend = duration, y = ipre, yend = ipost, col = "diff"),
+    arrow = arrow(length = unit(5, "pt"), ends = "both", type = "closed")
+  ) +
+  geom_point() +
+  labs(caption = "mood ~ 1 + post + (1 + post | session)") +
+  facet_wrap("session", nrow = 1) +
+  theme(legend.position = "bottom")
+```
 
 # Session info
 
