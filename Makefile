@@ -1,9 +1,7 @@
-all: data
+all: supplement.html ms.pdf
 
-data: data-raw/data.zip
+supplement.html: supplement.qmd
+	quarto render $<
 
-data-raw/data.zip:
-	mkdir -p data-raw
-	Rscript -e 'download.file("https://osf.io/download/j48qf/", destfile = "$@")'
-	touch $@
-	unzip data-raw/data.zip data/demographics.csv data/study_prompt_answered.csv
+ms.pdf: ms.qmd supplement.html
+	quarto render $<

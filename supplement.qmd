@@ -54,10 +54,26 @@ theme_set(
 
 # Data cleaning
 
+## Download data
+
+We download data from the main PWS dataset repo:
+
+```{r}
+#| label: data-download
+path <- "data-raw/data.zip"
+if (!file.exists(path)) {
+  download.file("https://osf.io/download/j48qf/", destfile = "data-raw/data.zip")
+  dir.create("data", FALSE)
+  unzip(path, files = c("data/demographics.csv", "data/study_prompt_answered.csv"))
+}
+```
+
+
 We first load the relevant variables from the raw data file. We also rescale the raw mood reports to proportions.
 
 ```{r}
 #| label: data-read
+#| code-fold: show
 #| message: false
 
 dat <- read_csv(
@@ -80,9 +96,8 @@ dat
 We then create a variable that identifies unique sessions, using the heuristics indicated in the code below
 
 ```{r}
-#| label: clean-sessions
+#| label: sessions-create
 #| code-fold: show
-#| include: true
 
 # Create sessions
 dat <- dat |> 
@@ -112,43 +127,41 @@ We filter out all other reports except mood ("Wellbeing"), then keep only sessio
 
 ```{r}
 
-dat <- dat |> filter(prompt == "Wellbeing") |> select(-prompt)
+dat <- dat |> 
+  filter(prompt == "Wellbeing") |> 
+  select(-prompt)
 
 # Count of data with all wellbeing observations
-dat_total_wellbeing <- dat |> 
+dat_total <- dat |> 
   summarise(
     n_total = n(),
     n_players = length(unique(pid))
   )
 
+# Include only sessions with "pre-" and "post" measure(s)
 dat <- dat |> 
-  mutate(
-    session_has_pre = duration[1] == 0,
-    session_has_post = sum(!is.na(mood)) > 1,
+  filter(
+    # Session has a wellbeing measure at time = 0
+    duration[1] == 0, 
+    # Session has at least two non-missing wellbeing measures (e.g. pre + 1 post)
+    sum(!is.na(mood)) > 1,
     .by = c(pid, session)
   )
-  
-dat |> 
-  count(session_has_pre, session_has_post) |> 
-  mutate(p = n / sum(n))
 
-dat <- dat |> 
-  filter(session_has_pre, session_has_post) |> 
-  select(!contains("_has_"))
-```
+# Count of data to be used in these analyses  
+dat_filtered <- dat |> 
+  summarise(
+    n_total = n(),
+    n_players = length(unique(pid))
+  )
 
-```{r}
+# Summary
 bind_rows(
-  "Total" = dat_total_wellbeing,
-  "This study" = dat |> 
-    summarise(
-      n_total = n(),
-      n_players = length(unique(pid))
-    ),
+  "total" = dat_total,
+  "filtered" = dat_filtered,
   .id = "Data"
 )
 ```
-
 
 The data look like in @tbl-data.
 
@@ -223,7 +236,7 @@ dat <- dat |>
   )
 ```
 
-Here is a scatterplot of the raw trimmed data.
+Here is a scatterplot of the raw data
 
 ```{r}
 #| label: fig-scatter
