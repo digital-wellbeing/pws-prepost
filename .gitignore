@@ -7,6 +7,7 @@ data-raw/
 data/
 *.pdf
 *.html
+*.docx
 *_cache/
 *_files/
 models/
