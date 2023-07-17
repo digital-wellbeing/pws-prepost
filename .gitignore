@@ -9,5 +9,6 @@ data/
 *.html
 *_cache/
 *_files/
+models/
 
 /.quarto/
