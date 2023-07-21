@@ -1,5 +1,4 @@
 ---
-abstract: "***Abstract*** Although video games receive immense attention as potential carriers of both positive and negative psychological effects, empirical evidence on games' effects remains mixed. One reason for this, we believe, is that the effects of games---if any---might be short lived and transient. To capture potential effects of games during play itself, we queried XXX players mood at the start of XXX gameplay sessions and in XXX subsequent moods. Critically, mood was reported in game in a modified version of a commercially available game. We found X Y and Z but surprisingly not XYZ. Implications. Statements."
 date: 2023-07-18
 bibliography: bibliography.bib
 format:
@@ -92,12 +91,6 @@ if (!file.exists(path)) {
   unzip(path, files = c("data/demographics.csv", "data/study_prompt_answered.csv"))
 }
 ```
-
-# Introduction
-
-## Current study
-
-Here, we ask how players' mood changes during gameplay sessions. 
 
 # Methods
 
@@ -224,10 +217,6 @@ The study procedures were granted ethical approval by Oxford University’s Cent
 ## Measures
 
 We measured affective well-being with one item.
-
-## Procedure
-
-Describe PWS. 
 
 ## Data analysis
 
