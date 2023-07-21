@@ -240,7 +240,7 @@ dat <- dat |>
   )
 ```
 
-The focal inference in the current work were mood levels at the beginning of each session (during those subset of sessions where mood was queried at login) contrasted to mood levels during the subsequent play session. We modelled each mood report *i* in 1 to `r nrow(dat)` for participant *j* in 1 to `r length(unique(dat$pid))` and participant-session *k* in 1 to `r length(unique(dat$ps))` as normally distributed with the following equations:
+Our primary contrast of interest was between mood levels at the beginning of each session and mood levels during the subsequent play session. We modelled each mood report *i* in 1 to `r nrow(dat)` for participant *j* in 1 to `r length(unique(dat$pid))` and participant-session *k* in 1 to `r length(unique(dat$ps))` with a normal distribution censored at the VAS limits [0, 1]. 
 
 $$
 \begin{align*}
@@ -267,21 +267,22 @@ $$
 We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and used the brms package for models [@burknerBrmsPackageBayesian2017].
 
 ```{r}
-contrasts(dat$post) <- c(-0.5, 0.5)
+set.seed(999)
+dat_snip <- dat |> 
+  filter(pid %in% sample(unique(dat$pid), 300))
+
 model <- bf(mood | cens(cl) ~ 0 + post + (0 + post |p| pid) + (1 | ps)) +
   lf(sigma ~ 0 + post + (1 |p| pid)) +
   gaussian()
 
-get_prior(model, dat)
-
 fit <- brm(
   model,
-  data = dat |> filter(pid %in% sample(unique(dat$pid), 100)),
+  data = dat_snip,
   silent = 0,
   threads = 2,
-  iter = 750,
+  iter = 1500,
   control = list(adapt_delta = .9),
-  file = "models/brm"
+  file = "models/brm-pre-post-location-scale"
 )
 summary(fit, prior = TRUE)
 ```
@@ -295,7 +296,7 @@ summary(fit, prior = TRUE)
 #| include: true
 #| fig-height: 2.2
 #| fig-width: 7
-#| fig-cap: '**A**. Histogram of session durations. **B**. Summary of how many sessions each participant completed. **C**. Histogram of all mood ratings.'
+#| fig-cap: '**A**. Histogram of session durations (note log10 x-axis). **B**. Summary of how many sessions each participant completed. **C**. Histogram of all mood ratings.'
 
 p0 <- dat |> 
   ggplot() +
@@ -306,8 +307,7 @@ p0 <- dat |>
     expand = expansion(c(0.001, 0.1)),
   ) +
   geom_histogram(
-    col = "dodgerblue4",
-    fill = "dodgerblue1",
+    col = "white",
     linewidth = .25
   )
 
@@ -317,10 +317,6 @@ dat_session_durations <- dat |>
 dat_session_counts <- dat |> 
   distinct(pid, session) |> 
   count(pid, name = "sessions")
-  summarise(
-    sessions = max(session),
-    .by = pid
-  )
 
 p_durations <- p0 %+%
   dat_session_durations +
@@ -348,15 +344,15 @@ p_mood <- p0 +
 #| label: fig-data
 #| include: true
 #| fig-width: 7.2
-#| fig-height: 6
-#| fig-cap: "**A**. Representative data from three participants (rows) showing scatterplots of mood responses over that session's (columns) duration. Each session's first mood report is highlighted in red, subsequent reports are in blue. **B**. Scatterplot of person-mean mood reports at the beginning of the session (x-axis) and subsequent reports (y-axis). **C**. Histogram of differences between person-means of initial and subsequent mood reports."
+#| fig-height: 5
+#| fig-cap: "**A**. Representative data from three participants (rows) showing scatterplots of mood responses over that session's (columns) duration. Each session's first mood report is highlighted in red, subsequent reports are in blue. **B**. Horizontal histograms of all sessions' mood response for that person. **C**. Scatterplot of person-mean mood reports at the beginning of the session (x-axis) and subsequent reports (y-axis). **D**. Histograms of mood ratings at the beginning of session, during the session, and differences between person-means of first and subsequent mood reports."
 
 axislabels <- c(0, 0.5, 1.0)
 
 # Take a quasirandom sample of people who had sufficient number of sessions
 # and data per session.
 set.seed(99)
-p0 <- dat |> 
+tmp <- dat |> 
   add_count(pid, session, name = "obs_per_session") |> 
   filter(obs_per_session >= 4) |> 
   mutate(session = as.numeric(as.factor(session)), .by = pid) |> 
@@ -364,16 +360,19 @@ p0 <- dat |>
   filter(session_per_person >= 4) |> 
   arrange(pid, session) |> 
   filter(pid %in% sample(unique(pid), 3)) |> 
-  mutate(Session = session, Person = fct_anon(pid)) |> 
+  mutate(Session = str_glue("Session {session}"), Person = str_glue("Person {fct_anon(pid)}"))
+
+library(ggdist)
+p_mood_duration_sessions <- tmp |> 
   ggplot() +
-  aes(duration, mood, col = post) +
+  aes(duration / 60, mood, col = post) +
   scale_color_brewer(
     "Pre-session measure",
     palette = "Set1",
     aesthetics = c("color", "fill")
   ) +
   scale_x_continuous(
-    "Session duration (minutes)"
+    "Session duration (hours)"
   ) +
   scale_y_continuous(
     "Mood",
@@ -381,10 +380,60 @@ p0 <- dat |>
     breaks = axislabels,
     labels = axislabels
   ) +
-  geom_point(size = 1.5, alpha = .75) +
+  geom_point(size = 1.5, alpha = 1) +
   facet_grid(
-    Person ~ Session
+    Person ~ Session,
+    scales = "free_x"
   ) +
+  theme(
+    plot.margin = unit(c(8, 8, 8, 8), "pt"),
+    # strip.background.y = element_blank(),
+    # strip.text.y = element_blank()
+  )
+
+p_mood_duration_all <- tmp |> 
+  mutate(Session = "All sessions") |> 
+  ggplot() +
+  aes(y = mood, col = post, fill = post) +
+  scale_color_brewer(
+    "Pre-session measure",
+    palette = "Set1",
+    aesthetics = c("color", "fill")
+  ) +
+  scale_x_continuous(
+    "Scaled count",
+    expand = expansion(c(0.01, 0.1))
+  ) +
+  scale_y_continuous(
+    limits = c(0, 1),
+    # expand = expansion(c(0, 0.01)),
+    breaks = axislabels,
+    labels = axislabels
+  ) +
+  coord_fixed(ratio = 0.66) +
+  geom_dotplot(
+    aes(x = 0),
+    dotsize = 0.9,
+    binaxis = "y",
+    method = "histodot",
+    binwidth = 0.06,
+    stackgroups = TRUE
+  ) +
+  facet_grid(
+    rows = vars(Person), 
+    cols = vars(Session)
+  ) +
+  theme(
+    axis.text = element_blank(), 
+    axis.title.y = element_blank(), 
+    axis.ticks.y = element_blank(), 
+    strip.background.y = element_blank(),
+    strip.text.y = element_blank()
+    # plot.margin = unit(c(8, 8, 8, 8), "pt")
+  )
+
+p_mood_duration <- (p_mood_duration_sessions | p_mood_duration_all) &
+  plot_layout(widths = c(80, 20)) &
   theme(legend.position = "none")
 
 tmp <- dat |> 
@@ -394,57 +443,98 @@ tmp <- dat |>
   ) |> 
   pivot_wider(names_from = post, values_from = mood) |> 
   mutate(delta = `1` - `0`)
-pa <- tmp |> 
+
+p_mood_biscatter <- tmp |> 
   ggplot(aes(`0`, `1`)) +
   scale_x_continuous(
-    "First mood",
+    "Mood at start of session",
     expand = expansion(0.01),
     breaks = axislabels,
     labels = axislabels
   ) +
   scale_y_continuous(
-    "Subsequent mood",
+    "Mood during session",
     expand = expansion(0.01),
     breaks = axislabels,
     labels = axislabels
   ) +
-  geom_abline(linewidth = .5, col = "dodgerblue") +
   geom_point(
     alpha = .25, size = 1, shape = 1
   ) +
+  geom_abline(linewidth = .33, col = "dodgerblue") +
   theme(aspect.ratio = 1)
-pb <- tmp |> 
+p_mood_difference <- tmp |> 
   drop_na(delta) |> 
   ggplot(aes(delta)) +
   scale_y_continuous(
     "Participants",
-    expand = expansion(c(0, 0.1))
+    expand = expansion(c(0.001, 0.1))
   ) +
   scale_x_continuous(
     "Difference (subsequent - first mood)"
   ) +
+  coord_cartesian(xlim = c(-0.4, 0.6)) +
   geom_histogram(binwidth = .025, col = "white") +
   stat_summaryh(
-    fun.data = mean_cl_boot_h, 
-    aes(y = 5), 
-    col = "dodgerblue"
+    fun.data = mean_cl_boot_h,
+    aes(y = 10),
+    col = "white",
+    fill = "black",
+    shape = 21,
+    stroke = 1.5, size = 0.75
   )
-(p0 / (pa | pb)) +
+
+p_mood_difference <- tmp |> 
+  rename(
+    `Pre-session` = `0`,
+    `During session` = `1`,
+    Difference = delta
+  ) |> 
+  pivot_longer(-pid) |> 
+  mutate(name = fct_inorder(name)) |> 
+  ggplot(aes(value)) +
+  geom_histogram(bins = 30, col = "white") +
+  scale_y_continuous(
+    "Participants",
+    expand = expansion(c(0.001, 0.1))
+  ) +
+  scale_x_continuous(
+    "Mood",
+    expand = expansion(c(0.001))
+  ) +
+  facet_wrap("name", ncol = 3, scales = "free")
+
+(p_mood_duration / (p_mood_biscatter | p_mood_difference)) +
   plot_layout(heights = c(6, 4)) +
   plot_annotation(tag_level = "A")
 ```
 
 ```{r}
-summary(fit)
+#| label: tbl-avg
+#| include: true
+#| tbl-cap: Population level average mood at beginning and during session, and difference.
 
 hs <- c(
   "Pre" = "post0 = 0",
   "Post" = "post1 = 0",
   "Difference" = "post1 - post0 = 0"
 )
+
+h_avg <- hypothesis(fit, hs)$hypothesis
+h_avg |> 
+  select(` ` = Hypothesis, Estimate, CI.Lower, CI.Upper) |> 
+  mutate(across(where(is.numeric), ~percent2(., .01))) |> 
+  knitr::kable(digits = 3)
+```
+
+
+```{r}
+#| eval: false
+h_sub <- hypothesis(fit, hs, scope = "coef", group = "pid")$hypothesis
+
 tmp <- bind_rows(
-  hypothesis(fit, hs)$hypothesis,
-  hypothesis(fit, hs, scope = "coef", group = "pid")$hypothesis
+  h_avg,
+  h_sub
 )
 tmp |> 
   ggplot(aes(Estimate, Hypothesis)) +
