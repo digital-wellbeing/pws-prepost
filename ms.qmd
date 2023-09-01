@@ -241,14 +241,17 @@ dat <- dat |>
   )
 ```
 
-Our primary contrast of interest was between mood levels at the beginning of each session and mood levels during the subsequent play session. We modelled each mood report *i* in 1 to `r nrow(dat)` for participant *j* in 1 to `r length(unique(dat$pid))` and participant-session *k* in 1 to `r length(unique(dat$ps))` with a normal distribution censored at the VAS limits [0, 1]. 
+Our primary contrast of interest was between player mood at the beginning of each session and mood during the subsequent play session. We implemented this contrast within a censored three-level hierarchical location-scale model: First, because mood was measured with a VAS, we specified a censored gaussian model of the responses. We then modelled the mean of the response distribution on indicator variables for time (pre, post), and allowed both parameters to vary randomly across players. In addition, we modelled random average moods over player-sessions. Also, because equal variances across people in such naturalistic observation seems unlikely, we specified a similar model for the response distribution's standard deviation, but only modelled random deviations across participants, and so assumed equal residual variation across sessions within players. 
+
+More formally, we modelled each mood response *i* in 1 to `r s$n_obs` from participant *j* in 1 to `r s$n_sub` and participant-session *k* in 1 to `r s$n_ses` with a normal distribution censored at the VAS limits [0, 1]. We then modelled the distribution's mean on indicator variables (0 or 1) for pre-play and during play, their random per-player deviations $\beta$, and a random deviation for player-sessions $\gamma_0$. We modelled the residual deviation on a global average and per-player deviations, through a log link function:
 
 $$
 \begin{align*}
-\text{mood}_{ijk} &\sim \text{Normal}(\eta_{ijk}, \kappa_{ij}), \\
-\eta_{ijk} &= \alpha_0 + \beta_{0j} + \gamma_{0k} + \\ 
-  &\quad \ (\alpha_1 + \beta_{1j} + \gamma_{1k})\text{post}_{ijk}, \\
-log(\kappa_{ij}) &= \alpha_2 + \beta_{2j} + \alpha_3\text{post}_{ijk}, \\
+\text{mood}_{ijk} &\sim \text{CensNormal}(\eta_{ijk}, \kappa_{ij}, 0, 1), \\
+\eta_{ijk} &= (\alpha_0 + \beta_{0j})\text{pre}_{ijk} +
+  (\alpha_1 + \beta_{1j})\text{post}_{ijk} +
+  \gamma_{0k}, \\
+log(\kappa_{ij}) &= \alpha_2 + \beta_{2j}, \\
 \begin{bmatrix} \alpha_0 \\ \alpha_1 \\ \alpha_2 \end{bmatrix} &\sim 
   \text{MVN}\left(\begin{bmatrix} 0 \\ 0 \\ 0 \end{bmatrix}, 
   \begin{bmatrix} 
@@ -256,12 +259,7 @@ log(\kappa_{ij}) &= \alpha_2 + \beta_{2j} + \alpha_3\text{post}_{ijk}, \\
     \rho_{{\alpha_0}{\alpha_1}} &\tau_{\alpha_1} &\rho_{{\alpha_1}{\alpha_2}} \\ 
     \rho_{{\alpha_0}{\alpha_2}} &\rho_{{\alpha_1}{\alpha_2}} &\tau_{\alpha_2} 
   \end{bmatrix}\right), \\
-  \begin{bmatrix} \gamma_0 \\ \gamma_1 \end{bmatrix} &\sim
-    \text{MVN}\left(\begin{bmatrix} 0 \\ 0 \end{bmatrix}, 
-    \begin{bmatrix} 
-      \tau_{\gamma_0} &\rho_{{\gamma_0}{\gamma_1}} \\ 
-      \rho_{{\gamma_0}{\gamma_1}} &\tau_{\gamma_1}
-  \end{bmatrix}\right).
+  \gamma_0 &\sim \text{Normal}(0, \tau_{\gamma_0})
 \end{align*}
 $$
 
@@ -272,10 +270,10 @@ We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and u
 
 set.seed(999)
 dat_snip <- dat |>
-  filter(pid %in% sample(unique(dat$pid), 300))
+  filter(pid %in% sample(unique(dat$pid), 100))
 
 model <- bf(mood | cens(cl) ~ 0 + post + (0 + post |p| pid) + (1 | ps)) +
-  lf(sigma ~ 0 + post + (1 |p| pid)) +
+  lf(sigma ~ 1 + (1 |p| pid)) +
   gaussian()
 
 fit <- brm(
