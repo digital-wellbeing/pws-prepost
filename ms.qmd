@@ -2,27 +2,7 @@
 date: 2023-07-18
 bibliography: bibliography.bib
 format:
-  docx:
-    reference-doc: reference.docx
-  pdf:
-    keep-tex: false
-    documentclass: scrartcl
-    classoption: twocolumn
-    fontfamily: libertinus
-    fontsize: 10pt
-    papersize: a4
-    fig-align: center
-    fig-width: 8
-    section-number: true
-    geometry:
-      - top=20mm
-      - left=20mm
-      - right=20mm
-      - bottom=30mm
-    include-in-header:
-      - text: |
-          \setlength{\columnsep}{7.5mm}
-          \addtokomafont{disposition}{\normalfont}
+  html: default
 ---
 
 ```{r setup}
