@@ -5,7 +5,8 @@ format:
   html: default
 ---
 
-```{r setup}
+```{r}
+#| label: setup
 #| include: false
 
 knitr::opts_chunk$set(
@@ -17,8 +18,10 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r packages}
+```{r}
+#| label: packages
 #| cache: false
+
 library(scales)
 library(cmdstanr)
 library(brms)
@@ -27,7 +30,8 @@ library(patchwork)
 library(tidyverse)
 ```
 
-```{r options}
+```{r}
+#| label: options
 #| cache: false
 
 dir.create("models", FALSE)
@@ -38,19 +42,22 @@ options(
 theme_set(
   theme_linedraw(base_size = 10) +
     theme(
-      strip.background = element_rect(fill = NA, color = NA), 
-      strip.text = element_text(colour = "black", hjust = 0), 
+      strip.background = element_rect(fill = NA, color = NA),
+      strip.text = element_text(colour = "black", hjust = 0),
       axis.text = element_text(size = rel(0.75)),
       panel.grid = element_blank()
     )
 )
 ```
 
-```{r functions}
+```{r}
+#| label: functions
+
 # Format big numbers with a comma
 number2 <- function(x, ...) {
   number(x, ..., big.mark = ",")
 }
+
 # Replace extreme percentages
 percent2 <- function(x, accuracy = .1) {
   x <- percent(x, accuracy = accuracy)
@@ -66,26 +73,33 @@ percent2 <- function(x, accuracy = .1) {
 # Download, unzip data from OSF PWS database
 path <- "data-raw/data.zip"
 if (!file.exists(path)) {
-  download.file("https://osf.io/download/j48qf/", destfile = "data-raw/data.zip")
+  download.file(
+    url = "https://osf.io/download/j48qf/",
+    destfile = "data-raw/data.zip"
+  )
   dir.create("data", FALSE)
-  unzip(path, files = c("data/demographics.csv", "data/study_prompt_answered.csv"))
+  unzip(
+    zipfile = path,
+    files = c("data/demographics.csv", "data/study_prompt_answered.csv")
+  )
 }
 ```
 
 # Methods
 
-```{r data-load}
-# Load data from csv
+```{r}
+#| label: data-load
+
 dat <- read_csv(
   "data/study_prompt_answered.csv",
   col_select = c(
-    pid, 
-    time = Time_utc, 
+    pid,
+    time = Time_utc,
     duration = CurrentSessionLength,
-    prompt = LastStudyPromptType, 
+    prompt = LastStudyPromptType,
     mood = response
   )
-) |> 
+) |>
   mutate(
     pid = factor(pid),
     mood = mood / 1000
@@ -93,61 +107,64 @@ dat <- read_csv(
 
 # Calculate raw data summaries
 sraw <- list()
-sraw$n_res <- dat |> 
-  count(prompt) 
+sraw$n_res <- dat |>
+  count(prompt)
 sraw$n_res_total <- number2(sum(sraw$n_res$n))
-sraw$n_res <- sraw$n_res |> 
-  mutate(n = number2(n)) |> 
+sraw$n_res <- sraw$n_res |>
+  mutate(n = number2(n)) |>
   pivot_wider(names_from = prompt, values_from = n)
 sraw$n_sub <- number2(length(unique(dat$pid)))
 
 # Create sessions using heuristics below
-dat <- dat |> 
-  arrange(pid, time) |> 
+dat <- dat |>
+  arrange(pid, time) |>
   mutate(
     i = row_number(),
     # Observation is in a new session if this...
-    new_session = 
+    new_session =
       # is the first total observation,
       i == 1 |
       # session duration is zero,
-      (duration == 0) | 
-      # session duration is less than previous session duration (ticker has reset),
-      (duration < lag(duration, default = 0)) | 
+      (duration == 0) |
+      # session is shorter than previous session (ticker has reset),
+      (duration < lag(duration, default = 0)) |
       # or if more than 30 minutes since previous observation.
       (time > lag(time) + minutes(30)),
     # Session number is the cumulative sum of new sessions...
     session = cumsum(new_session),
     # ... per person
     .by = pid
-  ) |> 
+  ) |>
   select(-c(i, new_session))
 
 
-# Filter data: Just wellbeing responses that occurred in sessions with both "pre" and "post" measures
-dat <- dat |> 
-  filter(prompt == "Wellbeing") |> 
+# Filter data:
+# Include only wellbeing responses that occurred
+# in sessions with both "pre" and "post" measures
+dat <- dat |>
+  filter(prompt == "Wellbeing") |>
   select(-prompt)
 
 # Count of data with all wellbeing observations
-dat_total <- dat |> 
+dat_total <- dat |>
   summarise(
     n_total = n(),
     n_players = length(unique(pid))
   )
 
 # Include only sessions with "pre-" and "post" measure(s)
-dat <- dat |> 
+dat <- dat |>
   filter(
     # Session has a wellbeing measure at time = 0
-    duration[1] == 0, 
-    # Session has at least two non-missing wellbeing measures (e.g. pre + 1 post)
+    duration[1] == 0,
+    # Session has at least two non-missing wellbeing measures 
+    # (e.g. pre + 1 post)
     sum(!is.na(mood)) > 1,
     .by = c(pid, session)
   )
 
-# Count of data to be used in these analyses  
-dat_filtered <- dat |> 
+# Count of data to be used in these analyses
+dat_filtered <- dat |>
   summarise(
     n_total = n(),
     n_players = length(unique(pid))
@@ -170,21 +187,23 @@ s$n_ses <- number2(nrow(count(dat, pid, session)))
 
 ## Participants
 
-```{r demographics-load}
+```{r}
+#| label: demographics-load
+
 demo <- read_csv(
-  "data/demographics.csv", 
+  "data/demographics.csv",
   col_select = c(pid, country, gender, age)
-) |> 
+) |>
   filter(pid %in% unique(dat$pid))
 
 a <- quantile(demo$age, probs = c(.5, .1, .9), na.rm = TRUE)
 a <- str_glue("{a[1]} ({a[2]}, {a[3]})")
-g <- count(demo, gender, sort = TRUE) |> 
-  mutate(p = n / sum(n)) |> 
+g <- count(demo, gender, sort = TRUE) |>
+  mutate(p = n / sum(n)) |>
   mutate(x = str_glue("{gender} ({number2(n)}, {percent2(p)})"))
 n_countries <- length(unique(demo$country[!is.na(demo$country)]))
-countries <- count(demo, country, sort = TRUE) |> 
-  mutate(p = n / sum(n)) |> 
+countries <- count(demo, country, sort = TRUE) |>
+  mutate(p = n / sum(n)) |>
   mutate(x = str_glue("{country} ({number2(n)}, {percent2(p)})"))
 ```
 
@@ -201,22 +220,24 @@ We measured affective well-being with one item.
 ## Data analysis
 
 ```{r}
-dat <- dat |> 
+#| label: data-wrangle-for-analysis
+
+dat <- dat |>
   mutate(
     post = factor(
-      row_number() > 1, 
-      levels = c(FALSE, TRUE), 
+      row_number() > 1,
+      levels = c(FALSE, TRUE),
       labels = c("0", "1")
     ),
     .by = c(pid, session)
-  ) |> 
-  mutate(ps = interaction(pid, session, sep = "_")) |> 
+  ) |>
+  mutate(ps = interaction(pid, session, sep = "_")) |>
   mutate(
     cl = case_when(
       mood == 0 ~ "left",
       mood == 1 ~ "right",
       TRUE ~ "none"
-      )
+    )
   )
 ```
 
@@ -247,8 +268,10 @@ $$
 We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and used the brms package for models [@burknerBrmsPackageBayesian2017].
 
 ```{r}
+#| label: model-estimate
+
 set.seed(999)
-dat_snip <- dat |> 
+dat_snip <- dat |>
   filter(pid %in% sample(unique(dat$pid), 300))
 
 model <- bf(mood | cens(cl) ~ 0 + post + (0 + post |p| pid) + (1 | ps)) +
@@ -278,7 +301,7 @@ summary(fit, prior = TRUE)
 #| fig-width: 7
 #| fig-cap: '**A**. Histogram of session durations (note log10 x-axis). **B**. Summary of how many sessions each participant completed. **C**. Histogram of all mood ratings.'
 
-p0 <- dat |> 
+p0 <- dat |>
   ggplot() +
   scale_x_continuous(
     expand = expansion(c(0.01, 0.01)),
@@ -291,11 +314,11 @@ p0 <- dat |>
     linewidth = .25
   )
 
-dat_session_durations <- dat |> 
+dat_session_durations <- dat |>
   filter(duration == max(duration), .by = c(pid, session))
 
-dat_session_counts <- dat |> 
-  distinct(pid, session) |> 
+dat_session_counts <- dat |>
+  distinct(pid, session) |>
   count(pid, name = "sessions")
 
 p_durations <- p0 %+%
@@ -305,7 +328,7 @@ p_durations <- p0 %+%
   labs(x = "Session duration (minutes)", y = "Sessions")
 
 
-p_sessions <- p0 %+% 
+p_sessions <- p0 %+%
   dat_session_counts +
   aes(sessions) +
   labs(x = "Sessions", y = "Participants")
@@ -332,14 +355,14 @@ axislabels <- c(0, 0.5, 1.0)
 # Take a quasirandom sample of people who had sufficient number of sessions
 # and data per session.
 set.seed(99)
-tmp <- dat |> 
-  add_count(pid, session, name = "obs_per_session") |> 
-  filter(obs_per_session >= 4) |> 
-  mutate(session = as.numeric(as.factor(session)), .by = pid) |> 
-  mutate(session_per_person = length(unique(session)), .by = pid) |> 
-  filter(session_per_person >= 4) |> 
-  arrange(pid, session) |> 
-  filter(pid %in% sample(unique(pid), 3)) |> 
+tmp <- dat |>
+  add_count(pid, session, name = "obs_per_session") |>
+  filter(obs_per_session >= 4) |>
+  mutate(session = as.numeric(as.factor(session)), .by = pid) |>
+  mutate(session_per_person = length(unique(session)), .by = pid) |>
+  filter(session_per_person >= 4) |>
+  arrange(pid, session) |>
+  filter(pid %in% sample(unique(pid), 3)) |>
   mutate(Session = str_glue("Session {session}"), Person = str_glue("Person {fct_anon(pid)}"))
 
 library(ggdist)
@@ -509,7 +532,9 @@ h_avg |>
 
 
 ```{r}
+#| label: wip-contrasts
 #| eval: false
+
 h_sub <- hypothesis(fit, hs, scope = "coef", group = "pid")$hypothesis
 
 tmp <- bind_rows(
