@@ -1,7 +1,26 @@
 ---
-date: 2023-07-18
+title: "Mood increases during video game play: A naturalistic observational case study of PowerWash Simulator"
+description: Computational notebook supporting our manuscript
+author:
+  - name: Matti Vuorre
+    orcid: 0000-0001-5052-066X
+    email: mjvuorre@uvt.nl
+    url: https://vuorre.netlify.app
+    affiliation:
+      - name: Tilburg University
+        url: https://www.tilburguniversity.edu/staff/m-j-vuorre
+  - name: Nick Ballou
+    orcid: 0000-0003-4126-0696
+    affiliation:
+      - name: University of Oxford
+  - name: Andrew K. Przybylski
+    orcid: 0000-0001-5547-2185
+    affiliation:
+      - name: University of Oxford
+date: 2023-09-04
 bibliography: bibliography.bib
 format:
+  docx: default
   html: default
 ---
 
