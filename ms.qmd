@@ -284,7 +284,7 @@ log(\kappa_{ij}) &= \alpha_2 + \beta_{2j}, \\
     \rho_{{\alpha_0}{\alpha_1}} &\tau_{\alpha_1} &\rho_{{\alpha_1}{\alpha_2}} \\ 
     \rho_{{\alpha_0}{\alpha_2}} &\rho_{{\alpha_1}{\alpha_2}} &\tau_{\alpha_2} 
   \end{bmatrix}\right), \\
-  \gamma_0 &\sim \text{Normal}(0, \tau_{\gamma_0})
+  \gamma_0 &\sim \text{Normal}(0, \tau_{\gamma_0}).
 \end{align*}
 $$
 
@@ -293,20 +293,16 @@ We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and u
 ```{r}
 #| label: model-estimate
 
-set.seed(999)
-dat_snip <- dat |>
-  filter(pid %in% sample(unique(dat$pid), 100))
-
 model <- bf(mood | cens(cl) ~ 0 + post + (0 + post |p| pid) + (1 | ps)) +
   lf(sigma ~ 1 + (1 |p| pid)) +
   gaussian()
 
 fit <- brm(
   model,
-  data = dat_snip,
+  data = dat,
   silent = 0,
   threads = 2,
-  iter = 1500,
+  iter = 100,
   control = list(adapt_delta = .9),
   file = "models/brm-pre-post-location-scale"
 )
