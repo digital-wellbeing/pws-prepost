@@ -7,16 +7,22 @@ author:
     email: mjvuorre@uvt.nl
     url: https://vuorre.netlify.app
     affiliation:
-      - name: Tilburg University
-        url: https://www.tilburguniversity.edu/staff/m-j-vuorre
+      - ref: a
+      - ref: b
   - name: Nick Ballou
     orcid: 0000-0003-4126-0696
     affiliation:
-      - name: University of Oxford
+      - ref: b
   - name: Andrew K. Przybylski
     orcid: 0000-0001-5547-2185
     affiliation:
-      - name: University of Oxford
+      - ref: b
+affiliations:
+  - id: a
+    name: Tilburg University
+  - id: b
+    name: University of Oxford
+  
 date: 2023-09-04
 bibliography: bibliography.bib
 format:
