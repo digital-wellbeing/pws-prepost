@@ -288,26 +288,36 @@ log(\kappa_{ij}) &= \alpha_2 + \beta_{2j}, \\
 \end{align*}
 $$
 
-We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and used the brms package for models [@burknerBrmsPackageBayesian2017].
-
 ```{r}
 #| label: model-estimate
 
-model <- bf(mood | cens(cl) ~ 0 + post + (0 + post |p| pid) + (1 | ps)) +
-  lf(sigma ~ 1 + (1 |p| pid)) +
+contrasts(dat$post) <- c(-0.5, 0.5)
+
+model <- bf(mood ~ 1 + post + (1 + post | pid) + (1 | ps)) +
   gaussian()
 
 fit <- brm(
   model,
   data = dat,
-  silent = 0,
+  silent = 0, # Required for printing mcmc progress on some systems
   threads = 2,
-  iter = 100,
-  control = list(adapt_delta = .9),
-  file = "models/brm-pre-post-location-scale"
+  iter = 500,
+  control = list(adapt_delta = .95),
+  file = "models/brm-pre-post-pid-ps"
 )
-summary(fit, prior = TRUE)
 ```
+
+
+```{r}
+#| label: model-convergence
+#| eval: false
+
+hist(rhat(fit))
+plot(fit)
+pairs(fit$fit, pars = variables(fit)[1:7])
+```
+
+We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and used the brms package to estimate and post-process the models [@burknerBrmsPackageBayesian2017]. We used Stan's HMC sampler to draw `r number2(ndraws(fit))` samples from the posterior distribution, and used brms' default prior distributions on all parameters, and used numerical and graphical checks to ensure model convergence.
 
 # Results
 
