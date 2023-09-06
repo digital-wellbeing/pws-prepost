@@ -26,6 +26,7 @@ affiliations:
 date: 2023-09-04
 bibliography: bibliography.bib
 format:
+  pdf: default
   docx: default
   html: default
 ---
@@ -274,7 +275,6 @@ We estimated this contrast within a censored three-level hierarchical regression
 
 More formally, we modelled each mood response *i* in 1 to `r s$n_obs` from participant *j* in 1 to `r s$n_sub` and participant-session *k* in 1 to `r s$n_ses` with a normal distribution censored at the VAS limits [0, 1]. We then modelled the distribution's mean ($\eta$) on a population-level intercept ($\beta_0$) and contrast of time ($\beta_1$), their random per-player deviations $\alpha$, and a random intercept for player-sessions $\gamma_0$:
 
-$$
 \begin{align*}
 \text{mood}_{ijk} &\sim \text{CensNormal}(\eta_{ijk}, \sigma^2, 0, 1), \\
 \eta_{ijk} &= \alpha_0 + \beta_{0j} +
@@ -288,71 +288,25 @@ $$
   \end{bmatrix}\right), \\
   \gamma_0 &\sim \text{Normal}(0, \tau_{\gamma_0}).
 \end{align*}
-$$
 
 ```{r}
 #| label: model-estimate
+#| cache: false
 
 contrasts(dat$post) <- c(-0.5, 0.5)
 
-model <- bf(mood ~ 1 + post + (1 + post | pid) + (1 | ps)) +
+model <- bf(mood | cens(cl) ~ 1 + post + (1 + post | pid) + (1 | ps)) +
   gaussian()
 
 fit <- brm(
   model,
   data = dat,
-  silent = 0, # Required for printing mcmc progress on some systems
-  threads = 2,
-  iter = 500,
-  control = list(adapt_delta = .95),
-  file = "models/brm-pre-post-pid-ps"
-)
-```
-
-```{r}
-#| label: model-build
-
-model <- bf(mood ~ 1 + post + (1 + post |p| pid) + (1 | ps)) +
-  lf(sigma ~ 1 + (1 |p| pid)) +
-  gaussian()
-
-fit2 <- brm(
-  model,
-  data = dat,
   silent = 0,
   threads = 2,
-  iter = 500,
-  control = list(adapt_delta = .95),
-  file = "models/brm-pre-post-pid-ps-scale"
-)
-
-model <- bf(mood ~ 1 + post + (1 + post |p| pid)) +
-  lf(sigma ~ 1 + (1 |p| pid)) +
-  gaussian()
-
-fit3 <- brm(
-  model,
-  data = dat,
-  silent = 0,
-  threads = 2,
-  iter = 500,
-  control = list(adapt_delta = .95),
-  file = "models/brm-pre-post-pid-scale"
-)
-
-model <- bf(mood | cens(cl) ~ 1 + post + (1 + post | pid) + (1 | ps)) +
-  gaussian()
-
-fit4 <- brm(
-  model,
-  data = dat,
-  silent = 0,
-  threads = 2,
-  iter = 500,
+  iter = 2000,
   control = list(adapt_delta = .95),
   file = "models/brm-pre-post-pid-ps-censored"
 )
-fit <- fit4
 ```
 
 ```{r}
@@ -360,9 +314,9 @@ fit <- fit4
 #| eval: false
 
 library(posterior)
-as_draws(fit4, variable = c("b_", "sd_", "cor_"), regex = TRUE) |> 
+as_draws(fit, variable = c("b_", "sd_", "cor_"), regex = TRUE) |> 
   summarise_draws(rhat)
-pairs(fit4$fit, pars = variables(fit)[1:7])
+pairs(fit$fit, pars = variables(fit)[1:7])
 ```
 
 We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and used the brms package to estimate, via Stan's HMC sampling procedures, and post-process the models [@@burknerBrmsPackageBayesian2017; @standevelopmentteamStanModelingLanguage2022]. We drew `r number2(ndraws(fit))` samples from the posterior distribution using brms' default prior distributions on all parameters, and used numerical and graphical checks to ensure model convergence and adequacy.

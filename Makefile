@@ -1,7 +1,12 @@
-all: supplement.html ms.pdf
+all: ms
 
-supplement.html: supplement.qmd
-	quarto render $<
+ms: pdf docx html
 
-ms.pdf: ms.qmd supplement.html
-	quarto render $<
+pdf: ms.qmd
+	quarto render $< -t pdf
+
+docx: ms.qmd
+	quarto render $< -t docx
+
+html: ms.qmd
+	quarto render $< -t html
