@@ -1,0 +1,328 @@
+---
+title: "Continuous time"
+date: now
+author: Kristoffer Magnusson
+format:
+  html:
+    code-fold: true
+---
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE,
+  include = TRUE,
+  echo = TRUE
+)
+```
+
+```{r}
+#| label: packages
+#| cache: false
+library(patchwork)
+library(tidyverse)
+library(lme4)
+library(knitr)
+library(emmeans)
+```
+
+
+Data cleaning copied from `ms.qmd` to create sessions and the pre/post contrast.
+```{r}
+#| label: options
+#| cache: false
+dat <- read_rds("data/session.rds")
+dat2 <- dat |>
+  filter(prompt == "Wellbeing") |>
+  select(-prompt)
+
+dat2 <- dat2 |>
+  filter(
+    # Session has a wellbeing measure at time = 0
+    duration[1] == 0,
+    # Session has at least two non-missing wellbeing measures 
+    # (e.g. pre + 1 post)
+    sum(!is.na(mood)) > 1,
+    .by = c(pid, session)
+  )
+
+dat2 <- dat2 |>
+  mutate(
+    post = factor(
+      row_number() > 1,
+      levels = c(FALSE, TRUE),
+      labels = c("0", "1")
+    ),
+    .by = c(pid, session)
+  ) |>
+  mutate(ps = interaction(pid, session, sep = "_")) |>
+  mutate(
+    cl = case_when(
+      mood == 0 ~ "left",
+      mood == 1 ~ "right",
+      TRUE ~ "none"
+    )
+  )
+```
+
+## Exploring sessions
+Let's look at one participant and compare the pre/post data set to the complete data. 
+
+```{r}
+#| label: fig-duration
+#| fig-cap: Comparing full data (top) with pre-post (bottom) data
+p0 <- ggplot(
+  filter(dat, 
+    pid == "p6622",
+    session %in% 14:16
+    ),
+  aes(
+    time,
+    session,
+    group = session
+  )
+) + 
+  geom_point(
+    aes(color = factor(prompt == "Wellbeing")),
+    size = 2
+    ) +
+  scale_x_datetime(limits = c(ymd_hms("2022-09-19 16:00:00"), ymd_hms("2022-09-20 00:00:00"))) +
+  scale_y_continuous(breaks = 14:16) +
+  facet_wrap(~pid)
+
+p1 <- ggplot(
+  filter(dat2, 
+    pid == "p6622",
+    session %in% 14:16
+    ),
+  aes(
+    time,
+    session,
+    group = session
+  )
+) + 
+  geom_point(
+    aes(color = factor(post)),
+    size = 2
+    ) +
+  scale_x_datetime(limits = c(ymd_hms("2022-09-19 16:00:00"), ymd_hms("2022-09-20 00:00:00"))) +
+  scale_y_continuous(breaks = 14:16) +
+  facet_wrap(~pid)
+p0 / p1
+```
+
+## Concerns with the pre/post contrast.
+There are issues with the pre/post contrasts.
+
+### 1. Session duration doesn't always start at 0
+As can be seen in @fig-duration, session 16 isn't included in the pre/post data, even tho the first response is a WB prompt. This is because it's duration is 6. 
+```{r}
+filter(dat, 
+  pid == "p6622",
+  session %in% 14:16
+) %>% 
+kable()
+
+filter(dat2, 
+  pid == "p6622",
+  session %in% 14:16
+) %>% 
+kable()
+```
+
+### 2. Lot's of data is discarded
+As can be seen in the @fig-pre-post there can be lot's of data that is not covered by the pre-post contrast. This might not be a problem as the prompts were randomized. But it's a lot of PWS gameplay that's also ignored.
+
+```{r}
+#| label: fig-pre-post
+#| fig-cap: Comparing full data (top) with pre-post (bottom) data
+p0 <- ggplot(
+  filter(dat, 
+    pid == "p10",
+    session %in% 16:26
+    ),
+  aes(
+    time,
+    session,
+    group = session
+  )
+) + 
+  geom_point(
+    aes(color = factor(prompt == "Wellbeing")),
+    size = 2
+    ) +
+  scale_x_datetime(
+    limits = c(
+      ymd_hms("2023-02-25 00:00:00"), 
+      ymd_hms("2023-02-29 00:00:00"
+      )
+    )
+  ) +
+  scale_y_continuous(breaks = 16:26)
+
+p1 <- ggplot(
+  filter(dat2, 
+    pid == "p10",
+    session %in% 16:26
+    ),
+  aes(
+    time,
+    session,
+    group = session
+  )
+) + 
+  geom_point(
+    aes(color = factor(post)),
+    size = 2
+    ) +
+  scale_x_datetime(
+    limits = c(
+      ymd_hms("2023-02-25 00:00:00"), 
+      ymd_hms("2023-02-29 00:00:00")
+      )
+    ) +
+  scale_y_continuous(breaks = 16:26)
+p0 / p1
+```
+
+### 3. There are multiple post responses within a session
+The "post" contrast is the average mood during a session. I know this is intentional, but I'm not sure if it's ideal. I think continuous time would be more interesting. The contrast averages over sessions that are too irregular, and will be hard to interpret. A model with continuous time within sessions would solve this.
+
+```{r}
+filter(dat, pid == "p10", session == 16) %>% 
+  kable()
+
+filter(dat2, pid == "p10", session == 16) %>% 
+  kable()
+```
+
+### 4. The post contrast doesn't represent the whole session
+This can also be seen in the data above. The last post measure in session 16 is at 2023-02-25 11:31:43, but the actual session continues for at least an hour longer, as can be seen in the full data: 2023-02-25 12:41:00. I'm not sure if this matter, but it feels weird that this isn't captured by the model. I guess this is related to concern #2, I think we need to somehow encode the "dose" of the PWS "treatment", and the planned missingness of the mood prompts.
+
+### The post contrast could be replaced with continuous time
+A model of the form
+
+```r
+mood ~ spline(time, knots) + (1 | session) + (1 | id)
+```
+
+would allow modeling change during session while still accounting for the highly irregular sessions.
+
+There is also the option to scale time to 1 on a session level to more closely mimic a pre/post design. This would have the advantage of being able to include all wellbeing responses, regardless if a session starts with a wellbeing measure.
+
+### Fit model
+Reset duration within each session
+```{r}
+dat <- dat %>% 
+  mutate(
+    duration = duration - duration[1],
+    hours = duration / 60,
+    .by = c(pid, session)
+  ) %>% 
+  filter(prompt == "Wellbeing")
+```
+
+
+Fit linear change
+```{r}
+library(rms)
+fit0 <- lmer(mood ~ hours + (1 | session) + (1 | pid), data = dat)
+summary(fit0)
+```
+
+
+What's the distribution of session lengths
+```{r}
+median_ses_len <- dat %>% 
+  group_by(pid, session) %>% 
+  summarise(session_length = max(duration)) %>% 
+  group_by(pid) %>% 
+  summarise(median_len = median(session_length))
+
+
+median(median_ses_len$median_len)
+
+mean(median_ses_len$median_len > 60)
+
+
+
+```
+
+"Typical" session length is 24 minutes. Few participants typically play for more than an hour. Plot estimated trend over 0 to 2 hours.
+
+```{r}
+emm0 <- emmeans(
+  fit0, 
+  ~hours, 
+  at = list(hours = seq(0,2, length.out = 100)),
+  lmer.df = "asymptotic"
+  )
+
+p0 <- as.data.frame(emm0) %>% 
+  ggplot(aes(hours, emmean)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = asymp.LCL, ymax = asymp.UCL), alpha = 0.25) +
+  labs(x = "Session duration (hours)")
+```
+
+
+Let's try non-linear change using `rms::rcs` with 5 knots with default placement, which should place most knots during the first hour.
+```{r}
+attr(rcs(dat$hours, 5), "parms")
+```
+
+Fit model with only random intercepts.
+```{r}
+fit1 <- lmer(mood ~ rcs(hours, 5) + (1 | session) + (1 | pid), data = dat)
+emm1 <- emmeans(
+  fit1, 
+  ~hours, 
+  at = list(hours = seq(0,2, length.out = 100)),
+  lmer.df = "asymptotic"
+  )
+p1 <- as.data.frame(emm1) %>% 
+  ggplot(aes(hours, emmean)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = asymp.LCL, ymax = asymp.UCL), alpha = 0.25) +
+  labs(x = "Session duration (hours)")
+```
+
+Adding `rcs(hours, 5)` as random effects would be messy, so let's fit the model with a linear random slope at the participant level. I don't think random slopes at the session level is needed? Moreover, I would expect that the exact random slopes specification have little impact on fixed effects in this case.
+```{r}
+path <- "models/lmm-fit2.Rds"
+if (file.exists(path)) {
+  fit2 <- read_rds(path)
+} else {
+  fit2 <- lmer(mood ~ rcs(hours, 5) + (1 | session) + (1 + hours | pid), data = dat)
+  write_rds(fit2, path)
+}
+emm2 <- emmeans(
+  fit2, 
+  ~hours, 
+  at = list(hours = seq(0,2, length.out = 100)),
+  lmer.df = "asymptotic"
+  )
+p2 <- as.data.frame(emm2) %>% 
+  ggplot(aes(hours, emmean)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = asymp.LCL, ymax = asymp.UCL), alpha = 0.25) +
+  labs(x = "Session duration (hours)")
+```
+
+Plots models, ignore model 2 as it's basically identical to model 1.
+
+```{r}
+p0 / p1
+```
+
+I think the shape of the spline makes sense.
+
+TODO:
+
+- GAMM?
+- Is censoring really needed?
+- Visualize the % that have positive vs negative change over a session? or over 30 / 60 minutes.
+
