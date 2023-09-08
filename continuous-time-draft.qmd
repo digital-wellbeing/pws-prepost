@@ -27,6 +27,7 @@ library(tidyverse)
 library(lme4)
 library(knitr)
 library(emmeans)
+library(splines)
 ```
 
 
@@ -213,45 +214,47 @@ would allow modeling change during session while still accounting for the highly
 
 There is also the option to scale time to 1 on a session level to more closely mimic a pre/post design. This would have the advantage of being able to include all wellbeing responses, regardless if a session starts with a wellbeing measure.
 
+### Session lengths
+
+What's the distribution of session lengths
+```{r}
+median_ses_len <- dat %>% 
+  group_by(pid, session) %>% 
+  mutate(
+    duration = duration - duration[1],
+  ) %>% 
+  summarise(session_length = max(duration)) %>% 
+  group_by(pid) %>% 
+  summarise(median_len = median(session_length))
+median(median_ses_len$median_len)
+mean(median_ses_len$median_len > 60)
+```
+
+"Typical" session length is 35 minutes. Few participants typically play for more than an hour. Plot estimated trend over 0 to 2 hours.
+
 ### Fit model
 Reset duration within each session
 ```{r}
-dat <- dat %>% 
+dat <- dat %>%
+  mutate(
+    ps = interaction(pid, session, sep = "_")
+  )  %>% 
+  filter(prompt == "Wellbeing") %>% 
   mutate(
     duration = duration - duration[1],
     hours = duration / 60,
     .by = c(pid, session)
-  ) %>% 
-  filter(prompt == "Wellbeing")
+  ) 
 ```
 
 
 Fit linear change
 ```{r}
 library(rms)
-fit0 <- lmer(mood ~ hours + (1 | session) + (1 | pid), data = dat)
-summary(fit0)
+fit0 <- lmer(mood ~ hours + (1 | ps) + (1 | pid), data = dat)
 ```
 
 
-What's the distribution of session lengths
-```{r}
-median_ses_len <- dat %>% 
-  group_by(pid, session) %>% 
-  summarise(session_length = max(duration)) %>% 
-  group_by(pid) %>% 
-  summarise(median_len = median(session_length))
-
-
-median(median_ses_len$median_len)
-
-mean(median_ses_len$median_len > 60)
-
-
-
-```
-
-"Typical" session length is 24 minutes. Few participants typically play for more than an hour. Plot estimated trend over 0 to 2 hours.
 
 ```{r}
 emm0 <- emmeans(
@@ -276,17 +279,34 @@ attr(rcs(dat$hours, 5), "parms")
 
 Fit model with only random intercepts.
 ```{r}
-fit1 <- lmer(mood ~ rcs(hours, 5) + (1 | session) + (1 | pid), data = dat)
+fit1 <- lmer(mood ~ rcs(hours, 5) + (1 | ps) + (1 | pid), data = dat)
 emm1 <- emmeans(
   fit1, 
   ~hours, 
   at = list(hours = seq(0,2, length.out = 100)),
   lmer.df = "asymptotic"
   )
+
+## for plotting knot placement
+get_knot_coords <- function(fit) {
+    knots <- attr(rcs(dat$hours, 5), "parms")
+    knots_x <- rcs(knots, knots)
+    b0 <- fixef(fit)[1]
+    b <- fixef(fit)[-1]
+    knots_y <- b0 + knots_x[,1] * b[1] + knots_x[,2] * b[2] + knots_x[,3] * b[3] + knots_x[,4] * b[4]
+    data.frame(
+        x = knots,
+        y = c(knots_y)
+    )
+}
 p1 <- as.data.frame(emm1) %>% 
   ggplot(aes(hours, emmean)) + 
   geom_line() +
   geom_ribbon(aes(ymin = asymp.LCL, ymax = asymp.UCL), alpha = 0.25) +
+  geom_point(
+    data = get_knot_coords(fit1),
+    aes(x,y)
+  ) +
   labs(x = "Session duration (hours)")
 ```
 
@@ -296,7 +316,7 @@ path <- "models/lmm-fit2.Rds"
 if (file.exists(path)) {
   fit2 <- read_rds(path)
 } else {
-  fit2 <- lmer(mood ~ rcs(hours, 5) + (1 | session) + (1 + hours | pid), data = dat)
+  fit2 <- lmer(mood ~ rcs(hours, 5) + (1 | ps) + (1 + hours | pid), data = dat)
   write_rds(fit2, path)
 }
 emm2 <- emmeans(
@@ -309,20 +329,238 @@ p2 <- as.data.frame(emm2) %>%
   ggplot(aes(hours, emmean)) + 
   geom_line() +
   geom_ribbon(aes(ymin = asymp.LCL, ymax = asymp.UCL), alpha = 0.25) +
+  # geom_point(
+  #   data = get_knot_coords(fit2),
+  #   aes(x,y)
+  # ) +
   labs(x = "Session duration (hours)")
 ```
 
 Plots models, ignore model 2 as it's basically identical to model 1.
 
 ```{r}
-p0 / p1
+p0 / p1 / p2
 ```
 
 I think the shape of the spline makes sense.
+
+
+## YOLO model with random slopes
+Here I add a random slope to each piece of the spline, i.e. 4 random slopes at the participant level. The model is fit on a random subset of 1000 pids.
+```{r}
+# include 1000 participants
+set.seed(1337)
+pids <- sample(unique(dat$pid), 1000)
+tmp <- filter(dat, pid %in% pids)
+# so predict won't complain
+tmp <- tmp %>% 
+    mutate(
+        pid = as.integer(pid),
+        ps = as.integer(ps)
+        )
+# same spline but different parameterization
+# usually less estimation problems
+spline <- ns(
+    tmp$hours, 
+    knots = c(0.12, 0.4, 1), 
+    Boundary.knots = c(0.016, 3)
+)
+colnames(spline) <- paste0("hours", 0:3)
+tmp <- cbind(tmp, spline)
+path <- "models/lmm-fit3.Rds"
+if (file.exists(path)) {
+  fit3 <- read_rds(path)
+} else {
+  fit3 <- lmer(
+    mood ~ hours0 + hours1 + hours2 + hours3 + (1 | ps) + (1 + hours0 + hours1 + hours2 + hours3 | pid), 
+    data = tmp
+  )
+  write_rds(fit3, path)
+}
+
+```
+
+I'm interested in if the spline changes based on the pre-session scores. Let's plot the fixed effects at -2, -1, 0 times the random intercept SD + the corresponding random slope values based on their correlation with the random intercept. 
+
+```{r}
+get_trend <- function(fit, data, re_int = 0, re_s0 = 0, re_s1 = 0, re_s2 = 0, re_s3 = 0) {
+    hours <- seq(0,2, length.out = 100)
+    x <- ns(
+        hours, 
+        knots = c(0.12, 0.4, 1), 
+        Boundary.knots = c(0.016, 3)
+    )
+    b0 <- fixef(fit)[1] + re_int
+    b <- fixef(fit)[-1] 
+    y <- b0 + x[,1] * (b[1] + re_s0) + x[,2] * (b[2] + re_s1) + x[,3] * (b[3] + re_s2) + x[,4] * (b[4] + re_s3)
+    data.frame(
+        x = hours,
+        y = c(y),
+        re_int
+    )
+}
+re <- as.data.frame(VarCorr(fit3))
+pid_int <- re[2, "sdcor"]
+pid_slope0 <- re[3, "sdcor"]
+pid_slope1 <- re[4, "sdcor"]
+pid_slope2 <- re[5, "sdcor"]
+pid_slope3 <- re[6, "sdcor"]
+pid_cor0 <- re[7, "sdcor"]
+pid_cor1 <- re[8, "sdcor"]
+pid_cor2 <- re[9, "sdcor"]
+pid_cor3 <- re[10, "sdcor"]
+sd1 <- 1
+sd2 <- 2
+rbind(
+    get_trend(fit3, data = tmp),
+    get_trend(
+        fit3, 
+        data = tmp,
+        -sd1 * pid_int,
+        -sd1 * pid_cor0 * pid_slope0, 
+        -sd1 * pid_cor1 * pid_slope1, 
+        -sd1 * pid_cor2 * pid_slope2, 
+        -sd1 * pid_cor3 * pid_slope3
+    ),
+    get_trend(
+        fit3, 
+        data = tmp,
+        -sd2 * pid_int,
+        -sd2 * pid_cor0 * pid_slope0, 
+        -sd2 * pid_cor1 * pid_slope1, 
+        -sd2 * pid_cor2 * pid_slope2, 
+        -sd2 * pid_cor3 * pid_slope3
+        )
+    ) %>% 
+  ggplot(
+    aes(
+        x, 
+        y, 
+        color = factor(re_int), 
+        group = factor(re_int)
+        )
+    ) + 
+  geom_line() +
+  labs(x = "Session duration (hours)")
+```
+
+The random intercepts are only weakly correlated with each piece of the cubic spline, so the shape doesn't change much.
+
+Let's also predict some individual slopes.
+
+```{r}
+pred <- filter(tmp, pid %in% sample(unique(tmp$pid), 10))
+pred$yhat <- predict(fit3, newdata = pred)
+ggplot(
+    data = pred,
+    aes(
+        x = hours,
+        y = yhat,
+        group = ps
+    )
+) + 
+    geom_line(
+        color = "blue", 
+        linewidth = 1
+    ) +
+    geom_point(
+        aes(y = mood)
+    ) +
+    facet_wrap(~pid)
+```
+
+
+Zoom in on pid 9263.
+```{r}
+ggplot(
+    data = filter(pred, pid == 9263),
+    aes(
+        x = hours,
+        y = yhat,
+        group = ps
+    )
+) + 
+    geom_line(
+        aes(y = mood),
+        linetype = "dashed",
+        alpha = 0.33
+    ) +
+    geom_line(
+        color = "blue", 
+        linewidth = 2
+        ) +
+    geom_point(
+        aes(y = mood)
+    ) +
+    facet_wrap(~session)
+```
+
+Probably good enough, even tho the session effect is only modelled using a random intercept.
+
+### Predict change
+Another YOLO approach to estimate individual change during a session is to to look at the model predictions.
+
+TODO: should be based on the actual session length, not only the range of WB prompts.
+
+```{r}
+pred <- fit3@frame
+pred$yhat <- predict(fit3)
+pred %>% 
+  # compare the last and first value
+  dplyr::summarize(change = last(yhat) - yhat[1], .by = c(pid, ps)) %>%
+  # average over sessions within participants
+  dplyr::summarize(change = mean(change), .by = pid) %>% 
+  # average over participants
+  dplyr::summarize(mean(change), sd(change))
+```
+
+We can also plot the distribution of the participants average change during sessions.
+```{r}
+pred %>% 
+  dplyr::summarize(change = last(yhat) - yhat[1], .by = c(pid, ps)) %>%
+  dplyr::summarize(change = mean(change), .by = pid) %>% 
+  ggplot(aes(change)) + geom_histogram()
+```
+
+They really don't change much. Let's look at a participant out in the tails.
+```{r}
+pred %>% 
+  dplyr::summarize(change = last(yhat) - yhat[1], .by = c(pid, ps))  %>% 
+  filter(change > 0.1) %>% head
+```
+
+Zoom in on pid 23.
+```{r}
+pred2 <- filter(tmp, pid == 23)
+pred2$yhat <- predict(fit3, newdata = pred2)
+ggplot(
+    data = pred2,
+    aes(
+        x = hours,
+        y = yhat,
+        group = ps
+    )
+) + 
+    geom_line(
+        aes(y = mood),
+        linetype = "dashed",
+        alpha = 0.33
+    ) +
+    geom_line(
+        color = "blue", 
+        linewidth = 2
+        ) +
+    geom_point(
+        aes(y = mood)
+    ) +
+    facet_wrap(~session)
+```
+
+This look kinda reasonable?
+
 
 TODO:
 
 - GAMM?
 - Is censoring really needed?
 - Visualize the % that have positive vs negative change over a session? or over 30 / 60 minutes.
-
