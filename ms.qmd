@@ -63,8 +63,12 @@ library(tidyverse)
 #| cache: false
 
 dir.create("models", FALSE)
+N_CORES <- as.numeric(Sys.getenv("N_CORES", unset = 1))
+N_THREADS <- as.numeric(Sys.getenv("N_THREADS", unset = 2))
+N_ITER <- as.numeric(Sys.getenv("N_THREADS", unset = 2000))
+N_SUBSET <- as.numeric(Sys.getenv("N_SUBSET"))
 options(
-  mc.cores = 8,
+  mc.cores = N_CORES,
   brms.backend = "cmdstanr"
 )
 theme_set(
@@ -190,6 +194,11 @@ dat <- dat |>
     .by = c(pid, session)
   )
 
+if(!is.na(N_SUBSET)) {
+  pid_subset <- sample(unique(dat$pid), N_SUBSET)
+  dat <- filter(dat, pid %in% pid_subset)
+}
+
 # Count of data to be used in these analyses
 dat_filtered <- dat |>
   summarise(
@@ -299,8 +308,8 @@ fit <- brm(
   model,
   data = dat,
   silent = 0,
-  threads = 2,
-  iter = 2000,
+  threads = N_THREADS,
+  iter = N_ITER,
   control = list(adapt_delta = .95),
   file = "models/brm-pre-post-pid-ps-censored"
 )
