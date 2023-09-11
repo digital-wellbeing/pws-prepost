@@ -408,8 +408,17 @@ dat_example_sessions <- dat |>
   add_count(pid, session, name = "obs_per_session") |>
   filter(obs_per_session >= 4) |>
   mutate(session = as.numeric(as.factor(session)), .by = pid) |>
-  mutate(session_per_person = length(unique(session)), .by = pid) |>
-  filter(session_per_person >= 4) |>
+  mutate(session_per_person = length(unique(session)), .by = pid)
+# default 
+min_sessions <- 4 
+n_filtered <- dat_example_sessions |> 
+  distinct(pid, session_per_person) |> 
+  filter(session_per_person >= 4) |> 
+  nrow()
+# pick anyone if there's not 3 pids with >= 4 sessions
+if(n_filtered < 3) min_sessions <- 0
+dat_example_sessions <- dat_example_sessions |>
+ filter(session_per_person >= min_sessions) |>
   arrange(pid, session) |>
   filter(pid %in% sample(unique(pid), 3)) |>
   mutate(Session = str_glue("Session {session}"), Person = str_glue("Person {fct_anon(pid)}"))
