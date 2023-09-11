@@ -63,8 +63,12 @@ library(tidyverse)
 #| cache: false
 
 dir.create("models", FALSE)
+N_CORES <- as.numeric(Sys.getenv("N_CORES", unset = 1))
+N_THREADS <- as.numeric(Sys.getenv("N_THREADS", unset = 2))
+N_ITER <- as.numeric(Sys.getenv("N_THREADS", unset = 2000))
+N_SUBSET <- as.numeric(Sys.getenv("N_SUBSET"))
 options(
-  mc.cores = 8,
+  mc.cores = N_CORES,
   brms.backend = "cmdstanr"
 )
 theme_set(
@@ -190,6 +194,11 @@ dat <- dat |>
     .by = c(pid, session)
   )
 
+if(!is.na(N_SUBSET)) {
+  pid_subset <- sample(unique(dat$pid), N_SUBSET)
+  dat <- filter(dat, pid %in% pid_subset)
+}
+
 # Count of data to be used in these analyses
 dat_filtered <- dat |>
   summarise(
@@ -299,8 +308,8 @@ fit <- brm(
   model,
   data = dat,
   silent = 0,
-  threads = 2,
-  iter = 2000,
+  threads = N_THREADS,
+  iter = N_ITER,
   control = list(adapt_delta = .95),
   file = "models/brm-pre-post-pid-ps-censored"
 )
@@ -399,8 +408,17 @@ dat_example_sessions <- dat |>
   add_count(pid, session, name = "obs_per_session") |>
   filter(obs_per_session >= 4) |>
   mutate(session = as.numeric(as.factor(session)), .by = pid) |>
-  mutate(session_per_person = length(unique(session)), .by = pid) |>
-  filter(session_per_person >= 4) |>
+  mutate(session_per_person = length(unique(session)), .by = pid)
+# default 
+min_sessions <- 4 
+n_filtered <- dat_example_sessions |> 
+  distinct(pid, session_per_person) |> 
+  filter(session_per_person >= 4) |> 
+  nrow()
+# pick anyone if there's not 3 pids with >= 4 sessions
+if(n_filtered < 3) min_sessions <- 0
+dat_example_sessions <- dat_example_sessions |>
+ filter(session_per_person >= min_sessions) |>
   arrange(pid, session) |>
   filter(pid %in% sample(unique(pid), 3)) |>
   mutate(Session = str_glue("Session {session}"), Person = str_glue("Person {fct_anon(pid)}"))
