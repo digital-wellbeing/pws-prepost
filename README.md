@@ -26,25 +26,31 @@ docker build \
     -t pws-pre-post .
 ```
 
-Then use the Docker image to run render the Quarto project inside a new container.
+Then use the Docker image to render the Quarto project inside a new container.
 
 ```bash
-docker run \
-    --rm \
-    # TODO: update
-    # -v "$(pwd)/ms.qmd:/home/ms.qmd" \
-    # -v "$(pwd)/_quarto.yml:/home/_quarto.yml" \
-    # -v "$(pwd)/docker/figures:/home/figures" \
-    # -v "$(pwd)/docker/docs:/home/output" \
-    # -v "$(pwd)/docker/tmp:/home/tmp" \
+docker run --rm \
+    -v $(pwd)/ms.qmd:/home/ms.qmd \
+    -v $(pwd)/data-raw/data.zip:/home/data-raw/data.zip \
+    -v $(pwd)/data/demographics.csv:/home/data/demographics.csv \
+    -v $(pwd)/data/study_prompt_answered.csv:/home/data/study_prompt_answered.csv \
+    -v $(pwd)/_quarto.yml:/home/_quarto.yml \
+    -v $(pwd)/bibliography.bib:/home/bibliography.bib \
+    -v $(pwd)/docker/docs:/home/output \
+    -v $(pwd)/docker/models:/home/models \
     -e N_CORES=4 \
     -e N_THREADS=2 \
     -e N_ITER=500 \
-    -e N_SUBSET=100
-    pws-pre-post
+    -e N_SUBSET=100 \
+    pws-pre-post 
 ```
 Environment variables:
 - `N_CORES` controls the number of CPU cores used by Stan. Default 1 if unset.
 - `N_THREADS` controls number of threads to use in within-chain parallelization. Default 2 if unset.
 - `N_ITER` sets the total number of iterations per chain. Default 2000 if unset.
 - `N_SUBSET` _Optional_ development variable. Controls if the model should be fit to a subset of the data. An integer that specifies how many participants that will be randomly included. Includes all participants if unset.
+
+Model objects are persistently stored in `./docker/models/`. Remove them for a clean run. 
+
+Data files are bind-mounted into the container to avoid re-downloading the files every run. If this is not desired simply comment out those lines.
+
