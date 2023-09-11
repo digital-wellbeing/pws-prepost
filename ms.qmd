@@ -623,7 +623,7 @@ h_avg |>
   knitr::kable()
 ```
 
-The model results confirmed the visual impressions described above: @tbl-avg indicates, with great certainty, that mood increased by about [`r paste0(map(h_avg_$hypothesis[3,4:5], ~number(.x, .001)), collapse = ", ")`] units. 
+The model results confirmed the visual impressions described above: @tbl-avg indicates, with great certainty, that mood increased by about [`r paste0(map(h_avg_$hypothesis[3,4:5], ~number(.x, .001)), collapse = ", ")`] units (@fig-coef, "Raw"). 
 
 ```{r}
 #| label: scaled-coefficients
@@ -649,7 +649,79 @@ posterior_pop_sum <- posterior_pop |>
   )
 ```
 
-To further interpret the magnitude of the difference in moods between pre- and during play, we compared the contrast to the natural variations in mood as estimated by the model (standard deviation of the between-person intercept heterogeneity ($\tau_{\alpha_0}$ = `r posterior_pop_sum$x[1]`), between-person pre-during difference heterogeneity ($\tau_{\alpha_1}$ = `r posterior_pop_sum$x[2]`) and to the residual standard deviation ($\sigma$ = `r posterior_pop_sum$x[3]`). The standardized (with the total residual variation from the three above components) pre-play -- during play contrast was `r posterior_pop_sum$x[6]`, a not ignorable difference.
+To further interpret the magnitude of the difference in moods between pre- and during play, we compared the contrast to the natural variations in mood as estimated by the model (standard deviation of the between-person intercept heterogeneity ($\tau_{\alpha_0}$ = `r posterior_pop_sum$x[1]`), between-person pre-during difference heterogeneity ($\tau_{\alpha_1}$ = `r posterior_pop_sum$x[2]`) and to the residual standard deviation ($\sigma$ = `r posterior_pop_sum$x[3]`). The standardized (with the total residual variation from the three above components) pre-play -- during play contrast was `r posterior_pop_sum$x[6]` (@fig-coef, "Scaled"), a not ignorable difference.
+
+```{r}
+#| label: heterogeneity-calculate
+
+posterior_pid <- coef(fit, summary = FALSE)$pid[,,"post1"]
+posterior_pid_scaled <- apply(
+  posterior_pid, 2, 
+  function(x) x / posterior_pop$total_residual
+) |> 
+  apply(2, function(x) mean_qi(x)) |> 
+  bind_rows(.id = "pid")
+posterior_pid <- posterior_pid |> 
+  apply(2, function(x) mean_qi(x)) |> 
+  bind_rows(.id = "pid")
+
+posterior_pid_sum <- bind_rows(
+  "b_post1" = posterior_pid,
+  "b_post1_scaled" = posterior_pid_scaled,
+  .id = "name"
+)
+
+x <- posterior_pop |> 
+  mutate(
+    prop_pos = pnorm(0, b_post1, sd_pid__post1, lower.tail = FALSE)
+  ) |> 
+  mean_qi(prop_pos) |> 
+  mutate(x = str_glue("{percent(prop_pos, .1)} [{number(.lower*100, .1)}, {number(.upper*100, .1)}]")) |> 
+  pull(x)
+```
+
+We then turned our attention to between-person differences in the difference in during and pre-play mood. With a sample of `r s$n_sub`, it is not surprising that the population-level contrast is credibly different from zero. We therefore asked the subsequent question: What proportion of the population from which the sample was drawn would we expect there to be an elevation in mood during play? The boxplots in @fig-coef show the distribution of player-specific contrasts estimated by the model, which indicated that `r x` of players in the population experience a positive shift in mood during play, compared to their moods during login.
+
+```{r}
+#| label: fig-coef
+#| include: true
+#| fig.width: 3
+#| fig.height: 1.4
+#| fig.cap: "Difference in mood during play compared to mood at session start. Points and intervals indicate posterior means and 95%CIs of the population level difference; boxplots summarize the player-level estimates. Raw estimates are on the VAS scale, whereas Scaled estimates indicate contrasts divided by the total residual deviance of the model."
+
+posterior_pop |> 
+  select(starts_with("b_")) |> 
+  pivot_longer(everything()) |>
+  group_by(name) |> 
+  mean_qi(value, .width = 0.95) |> 
+  ggplot(aes(value, name)) +
+  scale_x_continuous(
+    "During play - pre-play contrast",
+    breaks = extended_breaks(7)
+  ) +
+  scale_y_discrete(
+    breaks = c("b_post1", "b_post1_scaled"),
+    labels = c("Raw", "Scaled")
+  ) +
+  coord_cartesian(xlim = c(-0.25, 0.65)) +
+  geom_vline(xintercept = 0, linewidth = .33, col = "dodgerblue") +
+  geom_boxploth(
+    data = posterior_pid_sum,
+    aes(x = y, group = name), 
+    outlier.shape = NA,
+    notch = TRUE,
+    size = 0.25,
+    width = .2
+  ) +
+  geom_pointrangeh(
+    aes(xmin = .lower, xmax = .upper),
+    fatten = 2.5
+  ) +
+  theme(
+    axis.title.y = element_blank()
+  )
+```
+
 
 # Bibliography
 
