@@ -245,11 +245,13 @@ dat <- dat %>%
     hours = duration / 60,
     .by = c(pid, session)
   ) 
+write_rds(dat, "data/ct-dev-data.rds")
 ```
 
 
 Fit linear change
 ```{r}
+#| code-fold: show
 library(rms)
 fit0 <- lmer(mood ~ hours + (1 | ps) + (1 | pid), data = dat)
 ```
@@ -279,7 +281,11 @@ attr(rcs(dat$hours, 5), "parms")
 
 Fit model with only random intercepts.
 ```{r}
+#| code-fold: show
 fit1 <- lmer(mood ~ rcs(hours, 5) + (1 | ps) + (1 | pid), data = dat)
+```
+
+```{r}
 emm1 <- emmeans(
   fit1, 
   ~hours, 
@@ -311,7 +317,9 @@ p1 <- as.data.frame(emm1) %>%
 ```
 
 Adding `rcs(hours, 5)` as random effects would be messy, so let's fit the model with a linear random slope at the participant level. I don't think random slopes at the session level is needed? Moreover, I would expect that the exact random slopes specification have little impact on fixed effects in this case.
+
 ```{r}
+#| code-fold: show
 path <- "models/lmm-fit2.Rds"
 if (file.exists(path)) {
   fit2 <- read_rds(path)
@@ -319,6 +327,9 @@ if (file.exists(path)) {
   fit2 <- lmer(mood ~ rcs(hours, 5) + (1 | ps) + (1 + hours | pid), data = dat)
   write_rds(fit2, path)
 }
+```
+
+```{r}
 emm2 <- emmeans(
   fit2, 
   ~hours, 
@@ -348,6 +359,8 @@ I think the shape of the spline makes sense.
 ## YOLO model with random slopes
 Here I add a random slope to each piece of the spline, i.e. 4 random slopes at the participant level. The model is fit on a random subset of 1000 pids.
 ```{r}
+#| cold-fold: show
+
 # include 1000 participants
 set.seed(1337)
 pids <- sample(unique(dat$pid), 1000)
@@ -556,8 +569,345 @@ ggplot(
     facet_wrap(~session)
 ```
 
-This look kinda reasonable?
+This looks kinda reasonable?
 
+
+## brms
+Ignore for now.
+
+```{r}
+#| code-fold: show
+library(brms)
+options(
+  mc.cores = 4,
+  brms.backend = "cmdstanr"
+)
+fit_b0 <- brm(
+      mood ~ hours0 + hours1 + hours2 + hours3 + (1 | ps) + (1 | pid),
+      data = tmp,
+      cores = 4,
+      file = "models/brm-pre-post-ct0"
+)
+pp_check(fit_b0)
+```
+
+
+Censoring
+```{r}
+#| code-fold: show
+tmp <- tmp |> 
+  mutate(
+    cl = case_when(
+      mood == 0 ~ "left",
+      mood == 1 ~ "right",
+      TRUE ~ "none"
+    )
+  )
+fit_b1 <- brm(
+      mood | cens(cl) ~ hours0 + hours1 + hours2 + hours3 + (1 | ps) + (1 | pid),
+      data = tmp,
+      threads = 2,
+      iter = 1000,
+      file = "models/brm-pre-post-ct1"
+)
+pp_check(fit_b1)
+```
+
+
+## GAM(M)
+
+Let's try some GAMs. 
+```{r}
+library(mgcv)
+knots <- list(hours = c(0.016, 0.12, 0.4, 1, 3))
+tmp <- tmp |> 
+  mutate(
+    pid = as.factor(pid),
+    ps = as.factor(ps)
+  )
+```
+
+We'll start with a cubic spline using the same knot placement as used with the LMMs.
+```{r}
+#| code-fold: show
+fit_g_0 <- gam(
+    mood ~ s(hours, bs = "cr", k = 5), 
+    knots = knots,
+    method = "REML",
+    data = tmp,
+)
+```
+
+```{r}
+plot_gam <- function(fit, t_end = 2) {
+  emm0 <- emmeans(
+  fit, 
+  ~hours, 
+  at = list(hours = seq(0, t_end, length.out = 100))
+  )
+
+  p0 <- as.data.frame(emm0) %>% 
+    ggplot(aes(hours, emmean)) + 
+    geom_line() +
+    geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)")
+  p0
+}
+plot_gam(fit_g_0)
+```
+
+we could add a random intercept for pid and session like this
+```{r}
+#| eval: false
+#| code-fold: show
+fit_g_1 <- gam(
+    mood ~ s(hours, bs = "cr", k = 5) + s(pid, bs = "re") + s(ps, bs = "re"), 
+    knots = knots,
+    data = tmp,
+)
+```
+
+The call above is super slow, so let's use `gamm4` instead.
+
+```{r}
+#| code-fold: show
+library(gamm4)
+fit_g_1_lme4 <- gamm4(
+    mood ~ s(hours, bs = "cr", k = 5), 
+    knots = knots,
+    data = tmp, 
+    random = ~ (1 | pid) + (1 | ps)
+)
+```
+
+```{r}
+pred <- data.frame(hours = seq(0,2, length.out = 100))
+pred$yhat <- predict(fit_g_1_lme4$gam, newdata = pred)
+ggplot(
+  pred, 
+  aes(hours, yhat)
+  ) + 
+    geom_line() +
+    #geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)")
+```
+
+We are using the same smooth for everyone here, which is probably not what we want. 
+
+### Separate smooth per participant
+Let's try using a separate smooth per pid. We only fit the model to a subset of participants to save time.
+
+```{r}
+#| code-fold: show
+set.seed(6666)
+tmp2 <- filter(tmp, pid %in% sample(unique(pid), 50)) |> 
+  filter(!is.na(mood))
+fit_g_by_lme4 <- gamm4(
+    mood ~ s(hours, by = pid, bs = "cr", k = 5), 
+    knots = knots,
+    data = tmp2, 
+    random = ~ (1 | pid) + (1 | ps)
+)
+```
+
+N.B. that only the GAM part is plotted, I'm not sure if there is a command that automagically includes the random effects when using `gamm4`.
+
+```{r}
+pred <- expand.grid(
+  hours = seq(0, 2, length.out = 100),
+  pid = unique(tmp2$pid)
+ )
+pred$yhat <- predict(fit_g_by_lme4$gam, newdata = pred)
+pred$model <- "by"
+ggplot(
+  pred, 
+  aes(
+    hours, 
+    yhat,
+    group = pid,
+    color = pid
+    )
+  ) + 
+    geom_line() +
+    #geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)") +
+    theme(legend.position = "none")
+
+plot_pids <- sample(unique(tmp2$pid), 10)
+tmp2 <- filter(tmp2, !is.na(mood))
+tmp2$yhat <- predict(fit_g_by_lme4$gam)
+tmp2$model <- "by"
+ggplot(
+  filter(tmp2, pid %in% plot_pids), 
+  aes(
+    hours, 
+    yhat,
+    group = ps,
+    color = pid
+    )
+  ) + 
+    geom_line(aes(y = mood)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_point(aes(y = mood)) +
+    #geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)") +
+    facet_wrap(~pid) +
+    theme(legend.position = "none")
+
+pred_all <- filter(tmp2, pid %in% plot_pids)
+```
+
+We're fitting a separate fixed and random effects for each pid. Fitting this to the full data will be super slow?
+```{r}
+summary(fit_g_by_lme4$mer)
+```
+
+
+### Factor-smooth interaction 
+We can also try a factor-smooth interaction instead, this should be closer to what we want.
+
+```{r}
+#| code-fold: show
+fit_g_fs_lme4 <- gamm4(
+    mood ~ s(hours, pid, bs = "fs", xt = list(bs = "cr"), k = 5, fx = FALSE),, 
+    knots = knots,
+    data = tmp2, 
+    random = ~ (1 | pid) + (1 | ps)
+)
+```
+
+
+`gamm4` is not supported by `emmeans`, and I'm not sure how to plot the "marginal" smooth. 
+
+```{r}
+pred <- expand.grid(
+  hours = seq(0, 2, length.out = 100),
+  pid = unique(tmp2$pid)
+ )
+pred$yhat <- predict(fit_g_fs_lme4$gam, newdata = pred)
+pred$model <- "fs"
+ggplot(
+  pred, 
+  aes(
+    hours, 
+    yhat,
+    group = pid,
+    color = pid
+    )
+  ) + 
+    geom_line() +
+    #geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)") +
+    theme(legend.position = "none")
+
+tmp2$yhat <- predict(fit_g_fs_lme4$gam)
+tmp2$model <- "fs"
+ggplot(
+  filter(tmp2, pid %in% plot_pids), 
+  aes(
+    hours, 
+    yhat,
+    group = ps,
+    color = pid
+    )
+  ) + 
+    geom_line(aes(y = mood)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_point(aes(y = mood)) +
+    lims(y = c(0, 1)) +
+    #geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)") +
+    facet_wrap(~pid) +
+    theme(legend.position = "none")
+pred_all <- rbind(pred_all, filter(tmp2, pid %in% plot_pids))
+```
+
+The smooths in the plot above are all linear. Although, it looks pretty reasonable compared to the observed data. (TODO: investigate with more data.) If we fit a simple smooth to the data it's also linear.
+
+```{r}
+#| code-fold: show
+gam(
+    mood ~ s(hours, bs = "cr", k = 5), 
+    knots = knots,
+    method = "REML",
+    data = tmp2,
+) |> 
+  plot_gam()
+
+```
+
+### LMM again
+As a comparisons, let's refit the LMM with a cubic spline to the subset of data used here. And then we predict without including the random intercepts.
+
+```{r}
+#| code-fold: show
+fit3 <- lmer(
+  mood ~ hours0 + hours1 + hours2 + hours3 + (1 | ps) + (1 + hours0 + hours1 + hours2 + hours3 | pid), 
+  data = tmp2
+)
+```
+
+```{r}
+tmp2$yhat <- predict(
+  fit3, 
+  re.form = ~(0 + hours0 + hours1 + hours2 + hours3 | pid)
+)
+tmp2$model <- "lmer"
+ggplot(
+  filter(tmp2, pid %in% plot_pids), 
+  aes(
+    hours, 
+    yhat,
+    group = ps,
+    color = pid
+    )
+  ) + 
+    geom_line(aes(y = mood)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_point(aes(y = mood)) +
+    lims(y = c(0, 1)) +
+    #geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)") +
+    facet_wrap(~pid)
+
+pred_all <- rbind(pred_all, filter(tmp2, pid %in% plot_pids))
+```
+
+### Combined plot
+Plot the predictions from the 3 models in a combined figure.
+
+```{r}
+#| fig.height: 5
+#| fig.width: 7
+ggplot(
+  pred_all, 
+  aes(
+    hours, 
+    yhat,
+    group = interaction(ps, model),
+    color = model
+    )
+  ) + 
+    geom_line(data = filter(pred_all, model == "fs"), aes(y = mood, color = NA), alpha = 0.5) +
+    geom_point(data = filter(pred_all, model == "fs"), aes(y = mood, color = NA), alpha = 0.5) +
+    geom_line(linewidth = 1.5) +
+    #lims(y = c(0, 1)) +
+    #geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), alpha = 0.25) +
+    labs(x = "Session duration (hours)") +
+    facet_wrap(~pid, scales = "free_y")
+```
+
+### GAM summary
+Assuming that we wanted to fit these smooths in `brms` to model censoring, then
+
+- separate smooths using `by` is not feasible?
+- factor-smooth interaction is maybe feasible using the full data.
+  - Might be overpenalizing the smooths as they were all straight lines? 
+- the LMM is basically in between the model above when it come to "wiggliness", as would be expected
+
+I'm not sure if some if the issues is caused by how GAMs are affected by the highly irregular sessions + missing data.
+
+LMM might be _the_ model?
 
 TODO:
 
