@@ -1,0 +1,151 @@
+---
+title: Wrangle
+---
+
+This notebook wrangles the raw data on OSF to something more suitable for our current analyses.
+
+```{r}
+#| label: setup
+#| include: false
+
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE,
+  include = TRUE,
+  echo = TRUE
+)
+```
+
+```{r}
+#| label: packages
+#| cache: false
+
+library(tidyverse)
+source("functions.R")
+```
+
+```{r}
+#| label: data-download
+
+# Download, unzip data from OSF PWS database
+path <- "data-raw/data.zip"
+if (!file.exists(path)) {
+  dir.create("data-raw", FALSE)
+  download.file(
+    url = "https://osf.io/download/j48qf/",
+    destfile = "data-raw/data.zip"
+  )
+  dir.create("data", FALSE)
+  unzip(
+    zipfile = path,
+    files = c("data/demographics.csv", "data/study_prompt_answered.csv")
+  )
+}
+```
+
+```{r}
+#| label: data-load
+
+dat <- read_csv(
+  "data/study_prompt_answered.csv",
+  col_select = c(
+    pid,
+    time = Time_utc,
+    duration = CurrentSessionLength,
+    prompt = LastStudyPromptType,
+    mood = response
+  )
+) |>
+  mutate(
+    pid = factor(pid),
+    mood = mood / 1000
+  )
+
+# Calculate raw data summaries
+sraw <- list()
+sraw$n_res <- dat |>
+  count(prompt)
+sraw$n_res_total <- number2(sum(sraw$n_res$n))
+sraw$n_res <- sraw$n_res |>
+  mutate(n = number2(n)) |>
+  pivot_wider(names_from = prompt, values_from = n)
+sraw$n_sub <- number2(length(unique(dat$pid)))
+
+# Create sessions using heuristics below
+dat <- dat |>
+  arrange(pid, time) |>
+  mutate(
+    i = row_number(),
+    # Observation is in a new session if this...
+    new_session =
+      # is the first total observation,
+      i == 1 |
+      # session duration is zero,
+      (duration == 0) |
+      # session is shorter than previous session (ticker has reset),
+      (duration < lag(duration, default = 0)) |
+      # or if more than 30 minutes since previous observation.
+      (time > lag(time) + minutes(30)),
+    # Session number is the cumulative sum of new sessions...
+    session = cumsum(new_session),
+    # ... per person
+    .by = pid
+  ) |>
+  select(-c(i, new_session))
+
+
+# Filter data:
+# Include only wellbeing responses that occurred
+# in sessions with both "pre" and "post" measures
+dat <- dat |>
+  filter(prompt == "Wellbeing") |>
+  select(-prompt)
+
+# Count of data with all wellbeing observations
+dat_total <- dat |>
+  summarise(
+    n_total = n(),
+    n_players = length(unique(pid))
+  )
+
+# Include only sessions with "pre-" and "post" measure(s)
+dat <- dat |>
+  filter(
+    # Session has a wellbeing measure at time = 0
+    duration[1] == 0,
+    # Session has at least two non-missing wellbeing measures 
+    # (e.g. pre + 1 post)
+    sum(!is.na(mood)) > 1,
+    .by = c(pid, session)
+  )
+
+# Count of data to be used in these analyses
+dat_filtered <- dat |>
+  summarise(
+    n_total = n(),
+    n_players = length(unique(pid))
+  )
+
+# Summary
+bind_rows(
+  "total" = dat_total,
+  "filtered" = dat_filtered,
+  .id = "Data"
+)
+
+# Summaries of filtered data
+s <- list()
+s$n_sub <- number2(length(unique(dat$pid)))
+s$n_obs <- number2(nrow(dat))
+s$n_obs_missing <- number2(nrow(filter(dat, is.na(mood))))
+s$n_ses <- number2(nrow(count(dat, pid, session)))
+```
+
+```{r}
+dir.create("data", FALSE)
+saveRDS(dat, "data/data.rds")
+saveRDS(s, "data/s.rds")
+saveRDS(sraw, "data/sraw.rds")
+```
+

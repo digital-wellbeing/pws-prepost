@@ -1,34 +1,5 @@
 ---
-title: "Mood increases during video game play: A naturalistic observational case study of PowerWash Simulator"
-description: Computational notebook supporting our manuscript
-author:
-  - name: Matti Vuorre
-    orcid: 0000-0001-5052-066X
-    email: mjvuorre@uvt.nl
-    url: https://vuorre.netlify.app
-    affiliation:
-      - ref: a
-      - ref: b
-  - name: Nick Ballou
-    orcid: 0000-0003-4126-0696
-    affiliation:
-      - ref: b
-  - name: Andrew K. Przybylski
-    orcid: 0000-0001-5547-2185
-    affiliation:
-      - ref: b
-affiliations:
-  - id: a
-    name: Tilburg University
-  - id: b
-    name: University of Oxford
-  
-date: 2023-09-04
-bibliography: bibliography.bib
-format:
-  pdf: default
-  docx: default
-  html: default
+title: Analyze
 ---
 
 ```{r}
@@ -39,8 +10,8 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE,
   cache = TRUE,
-  include = FALSE,
-  echo = FALSE
+  include = TRUE,
+  echo = TRUE
 )
 ```
 
@@ -56,6 +27,7 @@ library(ggstance)
 library(ggdist)
 library(patchwork)
 library(tidyverse)
+source("functions.R")
 ```
 
 ```{r}
@@ -83,142 +55,13 @@ theme_set(
 ```
 
 ```{r}
-#| label: functions
-
-# Format big numbers with a comma
-number2 <- function(x, ...) {
-  number(x, ..., big.mark = ",")
-}
-
-# Replace extreme percentages
-percent2 <- function(x, accuracy = .1) {
-  x <- percent(x, accuracy = accuracy)
-  x <- if_else(x == "100.0%", ">99.9%", x)
-  x <- if_else(x == "0.0%", "<0.1%", x)
-  x
-}
-```
-
-```{r}
-#| label: data-download
-
-# Download, unzip data from OSF PWS database
-path <- "data-raw/data.zip"
-if (!file.exists(path)) {
-  dir.create("data-raw", FALSE)
-  download.file(
-    url = "https://osf.io/download/j48qf/",
-    destfile = "data-raw/data.zip"
-  )
-  dir.create("data", FALSE)
-  unzip(
-    zipfile = path,
-    files = c("data/demographics.csv", "data/study_prompt_answered.csv")
-  )
-}
-```
-
-```{r}
-#| label: data-load
-
-dat <- read_csv(
-  "data/study_prompt_answered.csv",
-  col_select = c(
-    pid,
-    time = Time_utc,
-    duration = CurrentSessionLength,
-    prompt = LastStudyPromptType,
-    mood = response
-  )
-) |>
-  mutate(
-    pid = factor(pid),
-    mood = mood / 1000
-  )
-
-# Calculate raw data summaries
-sraw <- list()
-sraw$n_res <- dat |>
-  count(prompt)
-sraw$n_res_total <- number2(sum(sraw$n_res$n))
-sraw$n_res <- sraw$n_res |>
-  mutate(n = number2(n)) |>
-  pivot_wider(names_from = prompt, values_from = n)
-sraw$n_sub <- number2(length(unique(dat$pid)))
-
-# Create sessions using heuristics below
-dat <- dat |>
-  arrange(pid, time) |>
-  mutate(
-    i = row_number(),
-    # Observation is in a new session if this...
-    new_session =
-      # is the first total observation,
-      i == 1 |
-      # session duration is zero,
-      (duration == 0) |
-      # session is shorter than previous session (ticker has reset),
-      (duration < lag(duration, default = 0)) |
-      # or if more than 30 minutes since previous observation.
-      (time > lag(time) + minutes(30)),
-    # Session number is the cumulative sum of new sessions...
-    session = cumsum(new_session),
-    # ... per person
-    .by = pid
-  ) |>
-  select(-c(i, new_session))
-
-
-# Filter data:
-# Include only wellbeing responses that occurred
-# in sessions with both "pre" and "post" measures
-dat <- dat |>
-  filter(prompt == "Wellbeing") |>
-  select(-prompt)
-
-# Count of data with all wellbeing observations
-dat_total <- dat |>
-  summarise(
-    n_total = n(),
-    n_players = length(unique(pid))
-  )
-
-# Include only sessions with "pre-" and "post" measure(s)
-dat <- dat |>
-  filter(
-    # Session has a wellbeing measure at time = 0
-    duration[1] == 0,
-    # Session has at least two non-missing wellbeing measures 
-    # (e.g. pre + 1 post)
-    sum(!is.na(mood)) > 1,
-    .by = c(pid, session)
-  )
-
-if(!is.na(N_SUBSET)) {
+dat <- readRDS("data/data.rds")
+s <- readRDS("data/s.rds")
+sraw <- readRDS("data/sraw.rds")
+if (!is.na(N_SUBSET)) {
   pid_subset <- sample(unique(dat$pid), N_SUBSET)
   dat <- filter(dat, pid %in% pid_subset)
 }
-
-# Count of data to be used in these analyses
-dat_filtered <- dat |>
-  summarise(
-    n_total = n(),
-    n_players = length(unique(pid))
-  )
-
-# Summary
-bind_rows(
-  "total" = dat_total,
-  "filtered" = dat_filtered,
-  .id = "Data"
-)
-
-# Summaries of filtered data
-s <- list()
-s$n_sub <- number2(length(unique(dat$pid)))
-s$n_obs <- number2(nrow(dat))
-s$n_obs_missing <- number2(nrow(filter(dat, is.na(mood))))
-s$n_ses <- number2(nrow(count(dat, pid, session)))
 ```
 
 # Methods
@@ -319,7 +162,6 @@ fit <- brm(
 #| label: model-convergence
 #| eval: false
 
-library(posterior)
 as_draws(fit, variable = c("b_", "sd_", "cor_"), regex = TRUE) |> 
   summarise_draws(rhat)
 pairs(fit$fit, pars = variables(fit)[1:7])

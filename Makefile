@@ -1,12 +1,10 @@
-all: ms
+all: wrangle analyze
 
-ms: pdf docx html
+analyze: analyze.qmd wrangle.qmd
+	quarto render $<
 
-pdf: ms.qmd
-	quarto render $< -t pdf
+wrangle: wrangle.qmd
+	quarto render $<
 
-docx: ms.qmd
-	quarto render $< -t docx
-
-html: ms.qmd
-	quarto render $< -t html
+clean:
+	rm -rf *_cache *_files *.pdf *.html *.docx
