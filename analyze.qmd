@@ -37,7 +37,7 @@ source("functions.R")
 dir.create("models", FALSE)
 N_CORES <- as.numeric(Sys.getenv("N_CORES", unset = 1))
 N_THREADS <- as.numeric(Sys.getenv("N_THREADS", unset = 2))
-N_ITER <- as.numeric(Sys.getenv("N_THREADS", unset = 2000))
+N_ITER <- as.numeric(Sys.getenv("N_ITER", unset = 2000))
 N_SUBSET <- as.numeric(Sys.getenv("N_SUBSET"))
 options(
   mc.cores = N_CORES,
