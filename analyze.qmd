@@ -472,14 +472,15 @@ hs <- c(
 h_avg_ <- hypothesis(fit, hs)
 h_avg <- tibble(h_avg_$samples)
 names(h_avg) <- names(hs)
-h_avg |> 
+h_avg_tab <- h_avg |> 
   summarise_draws(
     mean = ~number(mean(.), .001), 
     ~number2(quantile2(., probs = c(.025, .975)), .001), 
     pd = ~percent2(Pr(. > 0))
   ) |> 
   mutate(CI = str_glue("[{q2.5}, {q97.5}]")) |> 
-  select(` ` = variable, Estimate = mean, CI, pd) |> 
+  select(` ` = variable, Estimate = mean, CI, pd)
+h_avg_tab |>   
   knitr::kable()
 ```
 
@@ -580,6 +581,15 @@ posterior_pop |>
   theme(
     axis.title.y = element_blank()
   )
+```
+
+# Abstract
+
+```{glue}
+#| results: asis
+#| echo: false
+
+Although hundreds of millions of individuals play video games, a medium sometimes considered psychologically damaging, no firm evidence exists on how games affect players’ moods---if at all. One reason that current evidence remains mixed is that games are likely to affect players differently depending on the time-scale of the investigation: Do games affect players’ well-being over long periods of time, or are the effects fleeting and only evidenced in near real-time to play? In this case study of a single game (PowerWash Simulator), we examined {s$n_sub} players’ moods from {s$n_obs} reports provided in-game. We compared players’ moods before play sessions (at login) to their moods during play. We find that on average, players report {h_avg_tab[3, "Estimate"]} {h_avg_tab[3, "CI"]} scale percentages greater mood during play than at the beginning of a play session, and that {x} of individuals in the population are predicted to have such positive changes in mood. We do not know whether the current results indicate a causal effect, since the hypothetical treatment of “choosing to play” occurs prior to our first measure, nor do we know whether and how our results would generalize to other games and player populations. Nevertheless, current results offer a promising glimpse of the potential of games in positively contributing to player mood, and of the potential of in-game telemetry and mood measure to study games’ effects on people at a short time scale where effects are likely to exist.
 ```
 
 
