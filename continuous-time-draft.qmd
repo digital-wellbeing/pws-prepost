@@ -252,14 +252,24 @@ Reset duration within each session
 ```{r}
 dat <- dat |>
     mutate(
-        ps = interaction(pid, session, sep = "_")
-    ) |>
-    filter(prompt == "Wellbeing") |>
-    mutate(
         duration = duration - duration[1],
         hours = duration / 60,
         .by = c(pid, session)
+    ) |> mutate(
+        ps = interaction(pid, session, sep = "_")
+    ) |>
+    filter(prompt == "Wellbeing")
+
+dat |> 
+    summarize(
+        int = duration[1], .by = ps
+        ) |> 
+    summarize(
+        median(int),
+        mean(int),
+        sd(int)
     )
+
 write_rds(dat, "data/ct-dev-data.rds")
 ```
 
@@ -375,17 +385,7 @@ I think the shape of the spline makes sense.
 Here I add a random slope to each piece of the spline, i.e. 4 random slopes at the participant level. The model is fit on a random subset of 1000 pids.
 ```{r}
 #| cold-fold: show
-
-# include 1000 participants
 set.seed(1337)
-pids <- sample(unique(dat$pid), 1000)
-tmp <- filter(dat, pid %in% pids)
-# so predict won't complain
-tmp <- tmp |>
-    mutate(
-        pid = as.integer(pid),
-        ps = as.integer(ps)
-    )
 # same spline but different parameterization
 # usually less estimation problems
 spline <- ns(
@@ -394,7 +394,8 @@ spline <- ns(
     Boundary.knots = c(0.016, 3)
 )
 colnames(spline) <- paste0("hours", 0:3)
-tmp <- cbind(dat, spline)
+tmp <- cbind(dat, spline) |> 
+    filter(hours <= 3)
 path <- "models/lmm-fit3.Rds"
 if (file.exists(path)) {
     fit3 <- read_rds(path)
@@ -414,7 +415,7 @@ I'm interested in if the spline changes based on the pre-session scores. Let's p
 
 ```{r}
 get_trend <- function(fit, data, re_int = 0, re_s0 = 0, re_s1 = 0, re_s2 = 0, re_s3 = 0) {
-    hours <- seq(0, 2, length.out = 100)
+    hours <- seq(0, 3, length.out = 100)
     x <- ns(
         hours,
         knots = c(0.12, 0.4, 1),
@@ -502,8 +503,10 @@ ggplot(
 
 Zoom in on pid 9263.
 ```{r}
+pred <- filter(tmp, pid == "p9263")
+pred$yhat <- predict(fit3, newdata = pred)
 ggplot(
-    data = filter(pred, pid == 9263),
+    data = pred,
     aes(
         x = hours,
         y = yhat,
@@ -535,35 +538,37 @@ TODO: should be based on the actual session length, not only the range of WB pro
 ```{r}
 pred <- fit3@frame
 pred$yhat <- predict(fit3)
-pred |>
+ps_filtered <- pred |> 
+    summarise(n = n(), .by = ps) |> 
+    filter(n > 1)
+change <- pred |>
     # compare the last and first value
-    dplyr::summarize(change = last(yhat) - yhat[1], .by = c(pid, ps)) |>
+    filter(ps %in% ps_filtered$ps) |> 
+    summarise(change = last(yhat) - yhat[1], .by = c(pid, ps)) |>
     # average over sessions within participants
-    dplyr::summarize(change = mean(change), .by = pid) |>
+    summarise(change = median(change), .by = pid) 
+change |> 
     # average over participants
-    dplyr::summarize(mean(change), sd(change))
+    summarise(mean(change), median(change), sd(change))
 ```
 
 We can also plot the distribution of the participants average change during sessions.
 ```{r}
-pred |>
-    dplyr::summarize(change = last(yhat) - yhat[1], .by = c(pid, ps)) |>
-    dplyr::summarize(change = mean(change), .by = pid) |>
+change |> 
     ggplot(aes(change)) +
     geom_histogram()
 ```
 
 They really don't change much. Let's look at a participant out in the tails.
 ```{r}
-pred |>
-    dplyr::summarize(change = last(yhat) - yhat[1], .by = c(pid, ps)) |>
+change |> 
     filter(change > 0.1) |>
     head()
 ```
 
-Zoom in on pid 23.
+Zoom in on pid p10057.
 ```{r}
-pred2 <- filter(tmp, pid == 23)
+pred2 <- filter(tmp, pid == "p10057")
 pred2$yhat <- predict(fit3, newdata = pred2)
 ggplot(
     data = pred2,
@@ -595,6 +600,8 @@ This looks kinda reasonable?
 Ignore for now.
 
 ```{r}
+#| eval: false
+#| label: brms
 #| code-fold: show
 library(brms)
 options(
@@ -617,6 +624,8 @@ pp_check(fit_b0)
 Censoring
 ```{r}
 #| code-fold: show
+#| label: brms-cens
+#| eval: false
 tmp <- tmp |>
     mutate(
         cl = case_when(
@@ -658,12 +667,6 @@ fit_g_0 <- gam(
     method = "REML",
     data = tmp,
 )
-fit_g_0 <- gam(
-    mood ~ s(hours, k = 15),
-    #knots = knots,
-    method = "REML",
-    data = filter(tmp, hours < 5),
-)
 ```
 
 ```{r}
@@ -680,7 +683,7 @@ plot_gam <- function(fit, t_end = 2) {
         labs(x = "Session duration (hours)")
     p0
 }
-plot_gam(fit_g_0) + lims(y = c(0,1))
+plot_gam(fit_g_0)
 ```
 
 we could add a random intercept for pid and session like this
@@ -697,6 +700,7 @@ fit_g_1 <- gam(
 The call above is super slow, so let's use `gamm4` instead.
 
 ```{r}
+#| label: gamm4
 #| code-fold: show
 library(gamm4)
 fit_g_1_lme4 <- gamm4(
@@ -795,6 +799,7 @@ summary(fit_g_by_lme4$mer)
 We can also try a factor-smooth interaction instead, this should be closer to what we want.
 
 ```{r}
+#| label: gamm4-fs
 #| code-fold: show
 
 # TODO: include a main effect
