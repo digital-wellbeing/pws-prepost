@@ -95,7 +95,8 @@ dat <- dat |>
   select(-c(i, new_session))
 
 
-# Filter data:
+# Filter data
+dat_raw <- dat
 # Include only wellbeing responses that occurred
 # in sessions with both "pre" and "post" measures
 dat <- dat |>
@@ -145,6 +146,7 @@ s$n_ses <- number2(nrow(count(dat, pid, session)))
 ```{r}
 dir.create("data", FALSE)
 saveRDS(dat, "data/data.rds")
+saveRDS(dat_raw, "data/data-raw.rds")
 saveRDS(s, "data/s.rds")
 saveRDS(sraw, "data/sraw.rds")
 ```
