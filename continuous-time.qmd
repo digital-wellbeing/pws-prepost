@@ -171,15 +171,17 @@ if (file.exists(path)) {
   )
   write_rds(fit, path)
 }
-
 ```
+
+This model included `r number2(ngrps(fit)["pid"])` participants, with a total of `r number2(ngrps(fit)["ps"])` sessions and `r number2(nobs(fit))` observations.
 
 The spline is plotted in @fig-plot-curve, and we can see that there's a small but sharp increase early during a session.
 
 ```{r}
 #| label: fig-plot-curve
 #| fig-cap: Estimated mood during a play session
-
+#| fig-height: 3
+#| fig-width: 8
 hours <- seq(0, 3, length.out = 100)
 emm1 <- emmeans(
   fit,
@@ -209,7 +211,8 @@ p_curve
 ```{r}
 #| label: fig-plot-change
 #| fig-cap: Estimated difference in mood over a session compared to the start of a session
-
+#| fig-height: 3
+#| fig-width: 8
 d_change <- emmeans::contrast(
   emm1,
   method = "trt.vs.ctrl",
@@ -264,6 +267,8 @@ Interpret this with caution.
 ```{r}
 #| label: fig-intercept-sds
 #| fig-cap: Estimated curves for participants with an intercept equal to 0, -1SD, and -2SD.
+#| fig-height: 3
+#| fig-width: 8
 get_trend <- function(
     fit,
     data,
@@ -298,42 +303,38 @@ get_trend <- function(
     re_int
   )
 }
+
+pre_labels <- c("-2 SD", "-1 SD", "Mean", "1 SD")
+pre_values <- c(-2, -1, 0, 1)
+colors <- c(
+  "1 SD" = "#4daf4a",
+  "-1 SD" = "#e41a1c",
+  "-2 SD" = "#377eb8",
+  "Mean" = "#000000"
+)
 color_scale <- list(
   scale_color_manual(
-    "Intercept",
-    values = c(
-      "1 SD" = "#4daf4a",  
-      "-1 SD" = "#e41a1c",
-      "-2 SD" = "#377eb8",
-      "0" = "#000000"
-    )
+    "Pre",
+    values = colors
+  ),
+    scale_fill_manual(
+    "Pre",
+    values = colors
   )
 )
 
-p_int_sd <- rbind(
-get_trend(
-    fit,
-    data = dat,
-    sd = 1
-  ),
-  get_trend(fit, data = dat),
-  get_trend(
-    fit,
-    data = dat,
-    sd = -1
-  ),
-  get_trend(
-    fit,
-    data = dat,
-    sd = -2
-  )
+p_int_sd <- map(
+  pre_values,
+  \(sd) get_trend(fit, dat, sd = sd)
 ) |>
+  bind_rows() |>
   mutate(
     intercept = factor(
       rep(
-        c("1 SD", "0", "-1 SD", "-2 SD"),
+        pre_labels,
         each = 100
-      )
+      ),
+      levels = pre_labels
     )
   ) |>
   ggplot(
@@ -359,27 +360,20 @@ The curves in  @fig-intercept-sds are easier to compare if we plot them without 
 ```{r}
 #| label: fig-no-intercept
 #| fig-cap: Estimated change curves for participants with an intercept equal to 0, -1SD, and -2SD.
-p_int_sd_change <- rbind(
-  get_trend(fit, data = dat, intercept = FALSE),
-  get_trend(
-    fit,
-    data = dat,
-    sd = -1,
-    intercept = FALSE
-  ),
-  get_trend(
-    fit,
-    data = dat,
-    sd = -2,
-    intercept = FALSE
-  )
+#| fig-height: 3
+#| fig-width: 8
+p_int_sd_change <- map(
+  pre_values,
+  \(sd) get_trend(fit, dat, sd = sd, intercept = FALSE)
 ) |>
+  bind_rows() |>
   mutate(
     intercept = factor(
       rep(
-        c("0", "-1 SD", "-2 SD"),
+        pre_labels,
         each = 100
-      )
+      ),
+      levels = pre_labels
     )
   ) |>
   ggplot(
@@ -412,17 +406,15 @@ p_int_sd_change <- rbind(
 p_int_sd_change
 ```
 
-### Combined figured
-Combined figure for manuscript(?).
-
 ```{r}
-#| label: prod-figure
+#| label: fig-session-change
+#| echo: false
 #| fig-width: 8
 #| fig-height: 5
 p_comb <- (p_curve) /
   (
     p_int_sd +
-      p_int_sd_chage +
+      p_int_sd_change +
       plot_layout(guides = "collect") &
       theme(legend.position = "bottom")
   ) +
@@ -435,6 +427,260 @@ ggsave(
   width = 8,
   height = 5.5
 )
+```
+
+### Pretest x time continuous interaction
+Modeling the relationship between baseline wellbeing and change using random effects is limited. Here we'll fit a separate interaction model to the subset of participants that began their session by answering a mood question. This allows us to explicitly model the interaction between the pretest values and the within-session change, without having to infer this from the multivariate normal distribution of the random effects. This also allows us to model this as a non-linear relationship. 
+
+```{r}
+#| label: lmer-pre-interaction
+dat2 <- dat |>
+  filter(
+    # Session has a wellbeing measure at time = 0
+    duration[1] == 0,
+    .by = c(pid, session)
+  ) |> 
+  mutate(
+    pre = mood100[1],
+    .by = c(pid, session)
+  ) |> 
+  filter(
+    hours != 0
+  )
+
+path <- "models/lmm-pre-interaction.Rds"
+if (file.exists(path)) {
+  fit3 <- read_rds(path)
+} else {
+ fit3 <- lmer(
+    mood100 ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps), 
+    data = dat2
+    )
+  write_rds(fit3, path)
+}
+```
+
+This model included `r number2(ngrps(fit3)["pid"])` participants, with a total of `r number2(ngrps(fit3)["ps"])` sessions and `r number2(nobs(fit3))` observations.
+
+Plot the interaction at different pretest values. As shown in @fig-lmm-pre-interaction, this interaction model shows a pattern similar to @fig-intercept-sds where those who report lower mood at the beginning of a session also improve more. 
+```{r}
+#| label: fig-lmm-pre-interaction
+#| fig-cap: Interaction between pretest mood and change, shown at -2 SD, -1, SD, the mean, and +1 SD.
+#| fig-height: 3
+#| fig-width: 8
+pre_sum <- dat2 |>
+  summarise(
+    pre_mean = median(pre), .by = pid
+  ) |>
+  summarise(
+    mean = mean(pre_mean), sd = sd(pre_mean)
+  )
+emm <- emmeans(
+  fit3,
+  ~ hours + pre,
+  at = list(
+    hours = seq(0, 3, length.out = 100),
+    pre = pre_sum$mean + pre_values * pre_sum$sd
+  ),
+  lmer.df = "asymp"
+)
+p_pre_x <- as.data.frame(emm) |>
+  mutate(
+    pre = factor(
+      round(pre), 
+      labels = pre_labels
+      )
+  ) |>
+  ggplot(
+    aes(
+      hours,
+      emmean,
+      group = pre,
+      color = pre
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL,
+      fill = pre,
+      color = NULL
+    ),
+    alpha = 0.25,
+    show.legend = FALSE
+  ) + color_scale
+p_pre_x
+ggsave(
+  "figures/fig-interaction-model.png", 
+  p_pre_x, 
+  width = 7, 
+  height = 5
+)
+```
+
+Let's also calculate the within-session change for the interaction model.
+```{r}
+#| label: fig-lmm-pre-interaction-change
+#| fig-cap: Within-session change from the interaction model
+#| fig-height: 2.5
+#| fig-width: 8
+get_change_by_pre <- function(pre, label, fit, hours) {
+  emm <- emmeans(
+    fit,
+    ~ hours + pre,
+    at = list(
+      hours = hours,
+      pre = pre
+    ),
+    lmer.df = "asymp"
+  )
+  emmeans::contrast(
+    emm,
+    method = "trt.vs.ctrl",
+    ref = paste0("hours0 pre", pre)
+  ) |>
+    confint() |>
+    as.data.frame() |>
+    mutate(
+      hours = hours[-1],
+      pre = pre,
+      label = label
+    )
+}
+
+d_x_change <- data.frame(
+  pre = round(pre_sum$mean + pre_values * pre_sum$sd),
+  label = pre_labels
+) |>
+  pmap(\(pre, label) get_change_by_pre(
+    pre,
+    label,
+    fit3,
+    hours = seq(0, 3, length.out = 100)
+  )) |>
+  bind_rows()
+
+p_pre_x_change <- d_x_change |>
+  mutate(
+    label = factor(
+      label,
+      levels = pre_labels
+    )
+  ) |>
+  ggplot(
+    aes(
+      hours,
+      estimate,
+      group = label,
+      color = label,
+      fill = label
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL,
+      color = NULL
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dotted"
+  ) +
+  labs(x = "Session duration (hours)") +
+  color_scale +
+  facet_wrap(~label, ncol = 4)
+p_pre_x_change
+```
+
+### Manuscript figures
+Create figures for the manuscript.
+```{r}
+#| fig-height: 4
+#| fig-width: 8
+p_tmp <- (
+  (
+    p_pre_x + 
+      facet_wrap(~pre, ncol = 4) +
+      labs(y = "Mood", x = "Hours")
+    ) / 
+    (
+      p_pre_x_change +
+        labs(y = "Change in mood", x = "Hours")
+      )
+    ) +
+   plot_annotation(tag_levels = "A") +
+  plot_layout(
+    heights = c(2, 2),
+    widths = c(8, 8),
+    guides = "collect"
+  ) & theme(legend.position = "bottom") 
+p_tmp
+```
+
+```{r}
+#| echo: false
+ggsave(
+  "figures/fig-pre-x-change.png", 
+  p_tmp, 
+  width = 8, 
+  height = 4
+  )
+```
+
+And this figure.
+
+```{r}
+#| fig-height: 4
+#| fig-width: 8
+p_tmp <- (
+  p_curve + labs(x = "Hours", y = "Mood")
+  ) / (
+  p_change + labs(x = "Hours", y = "Change in mood")
+  ) + plot_annotation(tag_levels = "A") 
+p_tmp
+```
+
+```{r}
+#| echo: false
+ggsave(
+  "figures/fig-change.png", 
+  p_tmp, 
+  width = 8, 
+  height = 4
+  )
+```
+
+And a table.
+```{r}
+#| label: tbl-pre-interaction-change
+#| tbl-cap: Estimated within-session change from the interaction model
+pre_sds <- c(1, 0, -1, -2)
+tbl_x_change <- data.frame(
+  pre = round(pre_sum$mean + pre_values * pre_sum$sd),
+  label = pre_labels
+) |>
+  pmap(\(pre, label) get_change_by_pre(
+    pre, 
+    label, 
+    fit3, 
+    hours = c(0, 10/60, 0.5, 1, 2))
+    ) |>
+  bind_rows() |> 
+  select(
+    label, 
+    pre, 
+    hours,
+    estimate, 
+    CI_lwr = asymp.LCL, 
+    CI_upr = asymp.UCL
+    )
+tbl_x_change |> 
+  kable(digits = 2)
 ```
 
 ## Sensitivity checks
@@ -463,7 +709,6 @@ We also re-fit the LMM to the reduced data.
 
 ```{r}
 #| label: lmm-reduced
-
 fit2 <- lmer(
   mood ~ ns4(hours) + (1 | ps) + (1 + ns4(hours) | pid),
   data = fit_b$data
@@ -475,6 +720,8 @@ If we plot the fitted spline from both models, we in @fig-cens-compare that the 
 ```{r}
 #| label: fig-cens-compare
 #| fig-cap: Estimated trends with and without censoring.
+#| fig-height: 3
+#| fig-width: 8
 d_brms <-
   emmeans(
     fit_b,
@@ -581,7 +828,6 @@ rbind(fit2_tidy, fit_b_tidy) |>
 ```
 
 
-
 ```{r}
 #| label: tbl-model-cens-compare
 #| tbl-cap: Model coefficients from an LMM with and without censoring
@@ -677,40 +923,34 @@ get_trend_bayes <- function(sd) {
     bind_rows() |>
     mutate(sd = sd)
 }
-res <- bind_rows(
-  get_trend_bayes(0),
-  get_trend_bayes(-1),
-  get_trend_bayes(-2),
-)
-res <- res |>
+
+res <- map(
+  pre_values,
+  \(sd) get_trend_bayes(sd = sd)
+) |>
+  bind_rows() |>
   mutate(
     intercept = factor(
       sd,
-      levels = c(0, -1, -2),
-      labels = c("0", "-1 SD", "-2 SD")
+      levels = pre_values,
+      labels = pre_labels
     )
   )
+
 # lmm for comparison
 dat2 <- fit_b$data
-res_lmm <- rbind(
-  get_trend(fit2, data = dat2),
-  get_trend(
-    fit2,
-    data = dat2,
-    sd = -1
-  ),
-  get_trend(
-    fit2,
-    data = dat2,
-    sd = -2
-  )
+res_lmm <- map(
+  pre_values,
+  \(sd) get_trend(fit2, dat2, sd = sd)
 ) |>
+  bind_rows() |>
   mutate(
     intercept = factor(
       rep(
-        c("0", "-1 SD", "-2 SD"),
+        pre_labels,
         each = 100
-      )
+      ),
+      levels = pre_labels
     )
   ) |>
   select(
@@ -725,7 +965,8 @@ res_lmm <- rbind(
 ```{r}
 #| label: fig-bayes-int-sd
 #| fig-cap: Bayesian censored normal model vs LMM (dashed) fit to subset of data
-
+#| fig-height: 3
+#| fig-width: 8
 ggplot(
   res,
   aes(
@@ -753,117 +994,7 @@ ggplot(
   color_scale
 ```
 
-### Pretest x time continuous interaction
-To check the robustness of the impact of baseline wellbeing, we also fit a separate interaction model to the subset of participants that began their session by answering a mood question. This allows us to explicitly model the interaction between the pretest values and the within-session change, without having to infer this from the multivariate normal distribution of the random effects. 
-
-```{r}
-#| label: lmer-pre-interaction
-dat2 <- dat |>
-  filter(
-    # Session has a wellbeing measure at time = 0
-    duration[1] == 0,
-    .by = c(pid, session)
-  ) |> 
-  mutate(
-    pre = mood100[1],
-    .by = c(pid, session)
-  ) |> 
-  filter(
-    hours != 0
-  )
-
-path <- "models/lmm-pre-interaction.Rds"
-if (file.exists(path)) {
-  fit3 <- read_rds(path)
-} else {
- fit3 <- lmer(
-    mood100 ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps), 
-    data = dat2
-    )
-  write_rds(fit3, path)
-}
-```
-
-Plot the interaction at different pretest values. As shown in @fig-lmm-pre-interaction, this interaction model shows a pattern similar to @fig-intercept-sds where those who report lower mood at the beginning of a session also improve more. 
-```{r}
-#| label: fig-lmm-pre-interaction
-#| fig-cap: Interaction between pretest mood and change, shown at -2 SD, -1, SD, the mean, and +1 SD.
-pre_sum <- dat2 |> 
-    summarise(
-        pre_mean = median(pre), .by = pid
-    ) |> 
-    summarise(
-        mean = mean(pre_mean), sd = sd(pre_mean)
-    )
-emm <- emmeans(
-    fit3,
-    ~hours + pre,
-    at = list(
-        hours = seq(0, 3, length.out = 100), 
-        pre = c(
-            pre_sum$mean - 2 * pre_sum$sd, 
-            pre_sum$mean - pre_sum$sd, 
-            pre_sum$mean, 
-            pre_sum$mean + pre_sum$sd)
-            ),
-    lmer.df = "asymp"
-)
-p <- as.data.frame(emm) |> 
-    mutate(
-        pre = factor(round(pre))
-    ) |> 
-    ggplot(
-        aes(hours, emmean, group = pre, color = pre)
-    ) + 
-    geom_line() +
-    geom_ribbon(
-        aes(ymin = asymp.LCL, ymax = asymp.UCL, fill = pre, color = NULL),
-        alpha = 0.25
-        ) 
-p
-ggsave("figures/fig-interaction-model.png", p, width = 7, height = 5)
-```
-
-(Ignore this change model --- not sure if it's worth recreating it).
-```{r}
-#| eval: false
-#| label: fig-lmm-pre-interaction-change
-emm <- emmeans(
-    fit3,
-    ~hours + pre,
-    at = list(
-        hours = seq(0, 3, length.out = 100), 
-        pre = c(
-            pre_sum$mean)
-            ),
-    lmer.df = "asymp"
-)
-d_change <- emmeans::contrast(
-  emm,
-  method = "trt.vs.ctrl",
-  ref = "hours0 pre72.2106770833333"
-) |>
-  confint() |>
-  as.data.frame() |>
-  mutate(
-    hours = hours[-1]
-  )
-
-p_change <- d_change |>
-  ggplot(aes(hours, estimate)) +
-  geom_line() +
-  geom_ribbon(
-    aes(
-      ymin = asymp.LCL,
-      ymax = asymp.UCL
-    ),
-    alpha = 0.25
-  ) +
-  labs(x = "Session duration (hours)")
-p_change
-```
-
-For completeness we'll also fit the censored normal model with 1000 participants.
+Lastly, we'll also fit the interaction model using a censored normal distribution, again with 1000 participants.
 
 ```{r}
 #| label: cens-pre-interaction
@@ -895,6 +1026,8 @@ We then compare the censored normal model with the LMM and recreate @fig-lmm-pre
 ```{r}
 #| label: fig-cens-pre-interaction
 #| fig-cap: Censored normal vs LMM with a continuous by continuous interaction between within-session change and pretest mood.
+#| fig-height: 3
+#| fig-width: 8
 get_emm_pre <- function(fit) {
   emmeans(
     fit,
@@ -938,7 +1071,7 @@ emm_lmm <- get_emm_pre(fit3_small) |>
     upr = asymp.UCL
   )
 
-p <- bind_rows(emm_cens, emm_lmm) |>
+p_cens_pre_interaction <- bind_rows(emm_cens, emm_lmm) |>
   mutate(
     pre = factor(
       pre,
@@ -968,7 +1101,8 @@ p <- bind_rows(emm_cens, emm_lmm) |>
           color = pre,
         ),
         color = NA,
-        alpha = 0.25
+        alpha = 0.25,
+        show.legend = FALSE
       ) +
       geom_ribbon(
         data = filter(d, model == "LMM"),
@@ -979,10 +1113,11 @@ p <- bind_rows(emm_cens, emm_lmm) |>
           color = pre,
         ),
         fill = NA,
-        alpha = 0.15
+        alpha = 0.15,
+        show.legend = FALSE
       ) +
       scale_color_brewer(palette = "Set1") +
       scale_fill_brewer(palette = "Set1")
   }()
-p
+p_cens_pre_interaction
 ```
