@@ -68,9 +68,14 @@ theme_set(
       ),
       axis.text = element_text(
         size = rel(0.75)
-      ),
-      panel.grid = element_blank()
+      )
     )
+)
+scale_x_hours <- list(
+  scale_x_continuous(
+  breaks = c(0, 15/60, 0.5, 45/60, 1, 2, 3), 
+  labels = c(0, "15m", "30m", "45m", "1h", "2h", "3h")
+  )
 )
 ```
 
@@ -223,7 +228,8 @@ p_curve <- as.data.frame(emm1) |>
   labs(
     x = "Session duration (hours)",
     y = "Mood (0 - 100)"
-  )
+  ) +
+  scale_x_hours
 p_curve
 ```
 
@@ -256,7 +262,8 @@ p_change <- d_change |>
     alpha = 0.25
   ) +
   lims(y = c(0, 6)) +
-  labs(x = "Session duration (hours)")
+  labs(x = "Session duration (hours)") +
+  scale_x_hours
 p_change
 ```
 
@@ -338,7 +345,8 @@ p_int_sd <- map(
     x = "Session duration (hours)",
     y = "Mood (0 - 100)"
   ) +
-  color_scale
+  color_scale +
+  scale_x_hours
 
 p_int_sd
 ```
@@ -395,7 +403,8 @@ p_int_sd_change <- map(
     x = "Session duration (hours)",
     y = "Change in Mood (0 - 100)"
   ) +
-  color_scale
+  color_scale +
+  scale_x_hours
 p_int_sd_change
 ```
 
@@ -432,11 +441,11 @@ dat_pre <- dat |>
     # Session has a wellbeing measure at time = 0
     duration[1] == 0,
     .by = c(pid, session)
-  ) |> 
+  ) |>
   mutate(
     pre = mood100[1],
     .by = c(pid, session)
-  ) |> 
+  ) |>
   filter(
     hours != 0
   )
@@ -444,9 +453,9 @@ dat_pre <- dat |>
 fit3 <- fit_cached(
   "models/lmm-pre-interaction.Rds",
   lmer(
-    mood100 ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps), 
+    mood100 ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps),
     data = dat_pre
-    )
+  )
 )
 ```
 
@@ -485,13 +494,6 @@ Plot the interaction at different pretest values. As shown in @fig-lmm-pre-inter
 #| fig-cap: Interaction between pretest mood and change, shown at -2 SD, -1, SD, the mean, and +1 SD.
 #| fig-height: 3
 #| fig-width: 8
-pre_sum <- dat2 |>
-  summarise(
-    pre_mean = median(pre), .by = pid
-  ) |>
-  summarise(
-    mean = mean(pre_mean), sd = sd(pre_mean)
-  )
 emm <- emmeans(
   fit3,
   ~ hours + pre,
@@ -526,7 +528,10 @@ p_pre_x <- as.data.frame(emm) |>
     ),
     alpha = 0.25,
     show.legend = FALSE
-  ) + color_scale
+  ) +
+  color_scale +
+  scale_x_hours
+
 p_pre_x
 ggsave(
   "figures/fig-interaction-model.png", 
@@ -587,25 +592,38 @@ p_pre_x_change <- d_x_change |>
   ) +
   labs(x = "Session duration (hours)") +
   color_scale +
-  facet_wrap(~label, ncol = 4)
+  scale_x_hours +
+  facet_wrap(~label, ncol = 4) 
 p_pre_x_change
 ```
 
 ### Manuscript figures
 Create figures for the manuscript.
 ```{r}
+#| label: fig-ms-interaction
 #| fig-height: 4
 #| fig-width: 8
+
+scale_x_hours2 <- list(
+  scale_x_continuous(
+  breaks = c(0, 15/60, 0.5, 45/60, 1, 2, 3), 
+  labels = c(0, "", "30m", "", "1h", "2h", "3h")
+  )
+)
 p_tmp <- (
   (
     p_pre_x + 
       facet_wrap(~pre, ncol = 4) +
-      labs(y = "Mood", x = "Hours")
+      scale_x_hours2 +
+      labs(y = "Mood", x = NULL) +
+      theme(plot.margin = margin(0, 0, 0, 0, "pt"))
     ) / 
     (
       p_pre_x_change +
-        labs(y = "Change in mood", x = "Hours")
-      )
+        scale_x_hours2 +
+        labs(y = "Change", x = "Duration") +
+        theme(plot.margin = margin(0, 0, 0, 0, "pt"))
+      ) 
     ) +
    plot_annotation(tag_levels = "A") +
   plot_layout(
@@ -617,35 +635,38 @@ p_tmp
 ```
 
 ```{r}
+#| label: ggsave-fig-ms-interaction
 #| echo: false
 ggsave(
   "figures/fig-pre-x-change.png", 
   p_tmp, 
-  width = 8, 
-  height = 4
+  width = 7, 
+  height = 3.5
   )
 ```
 
 And this figure.
 
 ```{r}
+#| label: fig-ms-no-interaction
 #| fig-height: 4
 #| fig-width: 8
 p_tmp <- (
-  p_curve + labs(x = "Hours", y = "Mood")
+  p_curve + labs(x = NULL, y = "Mood")
   ) / (
-  p_change + labs(x = "Hours", y = "Change in mood")
+  p_change + labs(x = "Duration", y = "Change")
   ) + plot_annotation(tag_levels = "A") 
 p_tmp
 ```
 
 ```{r}
+#| label: ggsave-fig-ms-no-interaction
 #| echo: false
 ggsave(
   "figures/fig-change.png", 
   p_tmp, 
-  width = 8, 
-  height = 4
+  width = 6, 
+  height = 3
   )
 ```
 
