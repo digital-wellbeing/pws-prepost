@@ -143,11 +143,35 @@ dat <- dat |>
 
 
 ## Main model
-Define a spline that uses 4 degrees of freedom.
+Define a spline that uses 4 degrees of freedom. We base this on the quantiles of `hours`.
+
+```{r}
+#| label: spline-percentiles
+quantile(dat$hours)
+```
+
+Not all participants contributed an equal number of observations. We'll calculate the max session length per participant.
+
+```{r}
+#| label: tbl-session-max-prop
+#| tbl-cap: Proportion of participants that had at least on session last longer than gt_* hours
+dat |> 
+  summarize(
+    max = max(hours), .by = c(pid)
+  ) |> 
+  summarise(
+    gt_0.33 = mean(max > 0.33),
+    gt_0.71 = mean(max > 0.716),
+    gt_1 = mean(max > 1),
+    gt_2 = mean(max > 2),
+  ) |> 
+  kable(digits = 2)
+```
+
+@tbl-session-max-prop shows that 66% of the participant have at least one session that lasted for over 0.71 hours. So we will base our knot placement on these quantiles.
 
 ```{r}
 #| label: define-spline
-
 ns4 <- function(x) {
   ns(
     x,
