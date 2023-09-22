@@ -41,6 +41,7 @@ library(lme4)
 library(broom.mixed)
 library(knitr)
 source("functions.R")
+source("R/fit_cached.R")
 ```
 
 ```{r}
@@ -160,17 +161,13 @@ The main model is a LMM, we include random effects for each piece of the spline 
 
 ```{r}
 #| label: lmm-ns4
-
-path <- "models/lmm-ns4.Rds"
-if (file.exists(path)) {
-  fit <- read_rds(path)
-} else {
-  fit <- lmer(
+fit <- fit_cached(
+  "models/lmm-ns4.Rds",
+  lmer(
     mood100 ~ ns4(hours) + (1 | ps) + (1 + ns4(hours) | pid),
     data = dat
   )
-  write_rds(fit, path)
-}
+)
 ```
 
 This model included `r number2(ngrps(fit)["pid"])` participants, with a total of `r number2(ngrps(fit)["ps"])` sessions and `r number2(nobs(fit))` observations.
@@ -269,43 +266,10 @@ Interpret this with caution.
 #| fig-cap: Estimated curves for participants with an intercept equal to 0, -1SD, and -2SD.
 #| fig-height: 3
 #| fig-width: 8
-get_trend <- function(
-    fit,
-    data,
-    sd = 0,
-    intercept = TRUE) {
-  re <- as.data.frame(VarCorr(fit))
-  pid_int <- re[2, "sdcor"]
-  pid_slope0 <- re[3, "sdcor"]
-  pid_slope1 <- re[4, "sdcor"]
-  pid_slope2 <- re[5, "sdcor"]
-  pid_slope3 <- re[6, "sdcor"]
-  pid_cor0 <- re[7, "sdcor"]
-  pid_cor1 <- re[8, "sdcor"]
-  pid_cor2 <- re[9, "sdcor"]
-  pid_cor3 <- re[10, "sdcor"]
-  re_int <- sd * pid_int
-  re_s0 <- sd * pid_cor0 * pid_slope0
-  re_s1 <- sd * pid_cor1 * pid_slope1
-  re_s2 <- sd * pid_cor2 * pid_slope2
-  re_s3 <- sd * pid_cor3 * pid_slope3
-  hours <- seq(0, 3, length.out = 100)
-  x <- ns4(
-    hours
-  )
-  b0 <- fixef(fit)[1] + re_int
-  b <- fixef(fit)[-1]
-  y <- x[, 1] * (b[1] + re_s0) + x[, 2] * (b[2] + re_s1) + x[, 3] * (b[3] + re_s2) + x[, 4] * (b[4] + re_s3)
-  if (intercept) y <- y + b0
-  data.frame(
-    x = hours,
-    y = c(y),
-    re_int
-  )
-}
+source("R/get_trend.R")
 
 pre_labels <- c("-2 SD", "-1 SD", "Mean", "1 SD")
-pre_values <- c(-2, -1, 0, 1)
+pre_sds <- c(-2, -1, 0, 1)
 colors <- c(
   "1 SD" = "#4daf4a",
   "-1 SD" = "#e41a1c",
@@ -324,7 +288,7 @@ color_scale <- list(
 )
 
 p_int_sd <- map(
-  pre_values,
+  pre_sds,
   \(sd) get_trend(fit, dat, sd = sd)
 ) |>
   bind_rows() |>
@@ -363,8 +327,13 @@ The curves in  @fig-intercept-sds are easier to compare if we plot them without 
 #| fig-height: 3
 #| fig-width: 8
 p_int_sd_change <- map(
-  pre_values,
-  \(sd) get_trend(fit, dat, sd = sd, intercept = FALSE)
+  pre_sds,
+  \(sd) get_trend(
+    fit,
+    dat,
+    sd = sd,
+    intercept = FALSE
+  )
 ) |>
   bind_rows() |>
   mutate(
@@ -434,7 +403,7 @@ Modeling the relationship between baseline wellbeing and change using random eff
 
 ```{r}
 #| label: lmer-pre-interaction
-dat2 <- dat |>
+dat_pre <- dat |>
   filter(
     # Session has a wellbeing measure at time = 0
     duration[1] == 0,
@@ -448,19 +417,43 @@ dat2 <- dat |>
     hours != 0
   )
 
-path <- "models/lmm-pre-interaction.Rds"
-if (file.exists(path)) {
-  fit3 <- read_rds(path)
-} else {
- fit3 <- lmer(
+fit3 <- fit_cached(
+  "models/lmm-pre-interaction.Rds",
+  lmer(
     mood100 ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps), 
-    data = dat2
+    data = dat_pre
     )
-  write_rds(fit3, path)
-}
+)
 ```
 
 This model included `r number2(ngrps(fit3)["pid"])` participants, with a total of `r number2(ngrps(fit3)["ps"])` sessions and `r number2(nobs(fit3))` observations.
+
+Calculate pre values we are interested in plotting.
+
+```{r}
+#| label: pre-sum
+pre_sum <- dat_pre |>
+  summarise(
+    pre_mean = median(pre),
+    .by = pid
+  ) |>
+  summarise(
+    mean = mean(pre_mean),
+    sd = sd(pre_mean)
+  )
+kable(pre_sum, digits = 2)
+```
+
+
+```{r}
+#| label: pre-sd-values
+pre_values <- pre_sum$mean + pre_sds * pre_sum$sd
+data.frame(
+  pre = pre_values,
+  label = pre_labels
+  ) |> 
+  kable(digits = 2)
+```
 
 Plot the interaction at different pretest values. As shown in @fig-lmm-pre-interaction, this interaction model shows a pattern similar to @fig-intercept-sds where those who report lower mood at the beginning of a session also improve more. 
 ```{r}
@@ -480,7 +473,7 @@ emm <- emmeans(
   ~ hours + pre,
   at = list(
     hours = seq(0, 3, length.out = 100),
-    pre = pre_sum$mean + pre_values * pre_sum$sd
+    pre = pre_values
   ),
   lmer.df = "asymp"
 )
@@ -525,32 +518,9 @@ Let's also calculate the within-session change for the interaction model.
 #| fig-cap: Within-session change from the interaction model
 #| fig-height: 2.5
 #| fig-width: 8
-get_change_by_pre <- function(pre, label, fit, hours) {
-  emm <- emmeans(
-    fit,
-    ~ hours + pre,
-    at = list(
-      hours = hours,
-      pre = pre
-    ),
-    lmer.df = "asymp"
-  )
-  emmeans::contrast(
-    emm,
-    method = "trt.vs.ctrl",
-    ref = paste0("hours0 pre", pre)
-  ) |>
-    confint() |>
-    as.data.frame() |>
-    mutate(
-      hours = hours[-1],
-      pre = pre,
-      label = label
-    )
-}
-
+source("R/get_change_by_pre.R")
 d_x_change <- data.frame(
-  pre = round(pre_sum$mean + pre_values * pre_sum$sd),
+  pre = round(pre_values),
   label = pre_labels
 ) |>
   pmap(\(pre, label) get_change_by_pre(
@@ -661,7 +631,7 @@ And a table.
 #| tbl-cap: Estimated within-session change from the interaction model
 pre_sds <- c(1, 0, -1, -2)
 tbl_x_change <- data.frame(
-  pre = round(pre_sum$mean + pre_values * pre_sum$sd),
+  pre = round(pre_values),
   label = pre_labels
 ) |>
   pmap(\(pre, label) get_change_by_pre(
@@ -691,7 +661,10 @@ The main model used a censored normal distribution. A similar model would take a
 ```{r}
 #| label: brms-cens
 set.seed(345345)
-tmp <- filter(dat, pid %in% sample(unique(pid), 1000))
+tmp <- filter(
+  dat,
+  pid %in% sample(unique(pid), 1000)
+)
 
 fit_b <- brm(
   mood | cens(cl) ~ ns4(hours) + (1 + ns4(hours) | pid) + (1 | ps),
@@ -810,7 +783,6 @@ fit_b_tidy <- fit_b_tidy |>
 ```{r}
 #| label: fig-model-cens-compare
 #| fig-cap: Model coefficients from an LMM with and without censoring
-
 rbind(fit2_tidy, fit_b_tidy) |>
   ggplot(
     aes(
@@ -831,7 +803,6 @@ rbind(fit2_tidy, fit_b_tidy) |>
 ```{r}
 #| label: tbl-model-cens-compare
 #| tbl-cap: Model coefficients from an LMM with and without censoring
-
 left_join(
   fit2_tidy,
   fit_b_tidy,
@@ -856,92 +827,24 @@ We can also recreate @fig-intercept-sds using the Bayesian censored normal model
 
 ```{r}
 #| label: bayes-int-sd
-
-get_trend_bayes <- function(sd) {
-  re <- VarCorr(fit_b)
-  ps <- as_draws_df(
-    fit_b,
-    c(
-      "b_Intercept",
-      "b_ns4hours1",
-      "b_ns4hours2",
-      "b_ns4hours3",
-      "b_ns4hours4",
-      "sd_pid__Intercept",
-      "sd_pid__ns4hours1",
-      "sd_pid__ns4hours2",
-      "sd_pid__ns4hours3",
-      "sd_pid__ns4hours4",
-      "cor_pid__Intercept__ns4hours1",
-      "cor_pid__Intercept__ns4hours2",
-      "cor_pid__Intercept__ns4hours3",
-      "cor_pid__Intercept__ns4hours4"
-    )
-  ) |>
-    rename(
-      pid_int = sd_pid__Intercept,
-      pid_slope0 = sd_pid__ns4hours1,
-      pid_slope1 = sd_pid__ns4hours2,
-      pid_slope2 = sd_pid__ns4hours3,
-      pid_slope3 = sd_pid__ns4hours4,
-      pid_cor0 = cor_pid__Intercept__ns4hours1,
-      pid_cor1 = cor_pid__Intercept__ns4hours2,
-      pid_cor2 = cor_pid__Intercept__ns4hours3,
-      pid_cor3 = cor_pid__Intercept__ns4hours4,
-      b1 = b_ns4hours1,
-      b2 = b_ns4hours2,
-      b3 = b_ns4hours3,
-      b4 = b_ns4hours4,
-    ) |>
-    mutate(
-      re_int = sd * pid_int,
-      b0 = b_Intercept + re_int,
-      re_s0 = sd * pid_cor0 * pid_slope0,
-      re_s1 = sd * pid_cor1 * pid_slope1,
-      re_s2 = sd * pid_cor2 * pid_slope2,
-      re_s3 = sd * pid_cor3 * pid_slope3
-    )
-  lapply(hours, function(hour) {
-    x <- ns4(
-      hour
-    )
-    ps |>
-      mutate(
-        y = b0 + x[, 1] * (b1 + re_s0) + x[, 2] * (b2 + re_s1) + x[, 3] * (b3 + re_s2) + x[, 4] * (b4 + re_s3)
-      ) |>
-      select(y) |>
-      summarize(
-        estimate = median(y),
-        lwr = quantile(y, 0.025),
-        upr = quantile(y, 0.975)
-      ) |>
-      mutate(
-        hours = hour,
-        re_int = mean(ps$re_int)
-      )
-  }) |>
-    bind_rows() |>
-    mutate(sd = sd)
-}
-
+source("R/get_trend_bayes.R")
 res <- map(
-  pre_values,
+  pre_sds,
   \(sd) get_trend_bayes(sd = sd)
 ) |>
   bind_rows() |>
   mutate(
     intercept = factor(
       sd,
-      levels = pre_values,
+      levels = pre_sds,
       labels = pre_labels
     )
   )
 
 # lmm for comparison
-dat2 <- fit_b$data
 res_lmm <- map(
-  pre_values,
-  \(sd) get_trend(fit2, dat2, sd = sd)
+  pre_sds,
+  \(sd) get_trend(fit2, fit_b$data, sd = sd)
 ) |>
   bind_rows() |>
   mutate(
@@ -999,12 +902,12 @@ Lastly, we'll also fit the interaction model using a censored normal distributio
 ```{r}
 #| label: cens-pre-interaction
 set.seed(5454545)
-tmp2 <- filter(dat2, pid %in% sample(unique(pid), 1000))
+tmp_pre <- filter(dat_pre, pid %in% sample(unique(pid), 1000))
 
 fit3_b <- brm(
   mood ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps),
   silent = 0,
-  data = tmp2,
+  data = tmp_pre,
   threads = 2,
   #control = list(adapt_delta = .95),
   iter = 4000,
@@ -1032,7 +935,6 @@ get_emm_pre <- function(fit) {
   emmeans(
     fit,
     ~ hours + pre,
-    # data = dat2,
     at = list(
       hours = seq(0, 3, length.out = 100),
       pre = c(
@@ -1045,7 +947,7 @@ get_emm_pre <- function(fit) {
     lmer.df = "asymp"
   )
 }
-pre_sum <- dat2 |>
+pre_sum <- tmp_pre |>
   summarise(
     pre_mean = median(pre), .by = pid
   ) |>
