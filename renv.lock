@@ -2056,6 +2056,35 @@
       ],
       "Hash": "137e535a84b86280c714315e587a435b"
     },
+    "rstanarm": {
+      "Package": "rstanarm",
+      "Version": "2.26.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "BH",
+        "Matrix",
+        "R",
+        "Rcpp",
+        "RcppEigen",
+        "RcppParallel",
+        "StanHeaders",
+        "bayesplot",
+        "ggplot2",
+        "lme4",
+        "loo",
+        "methods",
+        "nlme",
+        "posterior",
+        "rstan",
+        "rstantools",
+        "shinystan",
+        "stats",
+        "survival",
+        "utils"
+      ],
+      "Hash": "1e0b43781c42c00d66bdfac990bce19e"
+    },
     "rstantools": {
       "Package": "rstantools",
       "Version": "2.3.1.1",
@@ -2268,6 +2297,22 @@
         "vctrs"
       ],
       "Hash": "671a4d384ae9d32fc47a14e98bfa3dc8"
+    },
+    "survival": {
+      "Package": "survival",
+      "Version": "3.5-7",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "Matrix",
+        "R",
+        "graphics",
+        "methods",
+        "splines",
+        "stats",
+        "utils"
+      ],
+      "Hash": "b8e943d262c3da0b0febd3e04517c197"
     },
     "sys": {
       "Package": "sys",

@@ -21,8 +21,8 @@ You can also build the project using Docker.
 docker build \
     --build-arg R_VERSION=4.3.1 \
     --build-arg QUARTO_VERSION=1.3.450 \
-    --build-arg RENV_VERSION=v1.0.2 \
-    --build-arg CMDSTAN_VERSION=2.33.0 \
+    --build-arg RENV_VERSION=v1.0.3 \
+    --build-arg CMDSTAN_VERSION=2.33.1 \
     -t pws-pre-post .
 ```
 
@@ -30,7 +30,10 @@ Then use the Docker image to render the Quarto project inside a new container.
 
 ```bash
 docker run --rm \
-    -v $(pwd)/ms.qmd:/home/ms.qmd \
+    -v $(pwd)/wrangle.qmd:/home/wrangle.qmd \
+    -v $(pwd)/analyze.qmd:/home/analyze.qmd \
+    -v $(pwd)/continuous-time.qmd:/home/continuous-time.qmd \
+    -v $(pwd)/R:/home/R \
     -v $(pwd)/data-raw/data.zip:/home/data-raw/data.zip \
     -v $(pwd)/data/demographics.csv:/home/data/demographics.csv \
     -v $(pwd)/data/study_prompt_answered.csv:/home/data/study_prompt_answered.csv \

@@ -38,6 +38,7 @@ library(emmeans)
 library(lme4)
 library(broom.mixed)
 library(knitr)
+library(rstanarm)
 source("R/functions.R")
 source("R/fit_cached.R")
 ```
