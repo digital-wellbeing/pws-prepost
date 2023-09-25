@@ -27,7 +27,7 @@ library(ggstance)
 library(ggdist)
 library(patchwork)
 library(tidyverse)
-source("functions.R")
+source("R/functions.R")
 ```
 
 ```{r}
