@@ -431,7 +431,29 @@ kable(pre_sum, digits = 2)
 ```{r}
 #| label: tbl-pre-sd-values
 #| tbl-cap: Distribution of average mood levels at the start of a session
-pre_values <- pre_sum$mean + pre_sds * pre_sum$sd
+#pre_values <- pre_sum$mean + pre_sds * pre_sum$sd
+
+pre <- dat_pre |> 
+  summarise(pre = pre[1], .by = ps) |> 
+  pull(pre)
+pre_values <- quantile(pre, c(0.05, .25, 0.5, 0.75))
+pre_labels <- c("5%", "25%", "Median", "75%")
+colors <- c(
+  "5%" = "#4daf4a",
+  "25%" = "#e41a1c",
+  "75%" = "#377eb8",
+  "Median" = "#000000"
+)
+color_scale_x <- list(
+  scale_color_manual(
+    "Pre",
+    values = colors
+  ),
+    scale_fill_manual(
+    "Pre",
+    values = colors
+  )
+)
 data.frame(
   pre = pre_values,
   label = pre_labels
@@ -480,7 +502,7 @@ p_pre_x <- as.data.frame(emm) |>
     alpha = 0.25,
     show.legend = FALSE
   ) +
-  color_scale +
+  color_scale_x +
   scale_x_hours
 
 p_pre_x
@@ -542,7 +564,7 @@ p_pre_x_change <- d_x_change |>
     linetype = "dotted"
   ) +
   labs(x = "Session duration (hours)") +
-  color_scale +
+  color_scale_x +
   scale_x_hours +
   facet_wrap(~label, ncol = 4) 
 p_pre_x_change
