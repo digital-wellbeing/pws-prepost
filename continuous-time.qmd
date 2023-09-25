@@ -83,10 +83,6 @@ Load the data and remove observations that occurred more than 3 hours into a ses
 ```{r}
 #| label: load-data
 dat <- read_rds("data/data-raw.rds")
-if (!is.na(N_SUBSET)) {
-  pid_subset <- sample(unique(dat$pid), N_SUBSET)
-  dat <- filter(dat, pid %in% pid_subset)
-}
 dat <- dat |>
   mutate(
     duration = duration - duration[1],
@@ -111,6 +107,11 @@ dat <- dat |>
     ),
     mood100 = mood * 100
   )
+if (!is.na(N_SUBSET)) {
+  pid_subset <- sample(unique(dat$pid), N_SUBSET)
+  dat <- filter(dat, pid %in% pid_subset) |> 
+    droplevels()
+}
 ```
 
 
@@ -395,7 +396,8 @@ dat_pre <- dat |>
   ) |>
   filter(
     hours != 0
-  )
+  ) |> 
+  droplevels()
 
 fit3 <- fit_cached(
   "models/lmm-pre-interaction.Rds",
@@ -665,6 +667,7 @@ The main discrete time model used a censored normal distribution. A similar mode
 
 ```{r}
 #| label: brms-cens
+#| results: hide
 set.seed(345345)
 tmp <- filter(
   dat,
@@ -693,7 +696,7 @@ fit2 <- lmer(
 )
 ```
 
-If we plot the fitted spline from both models, we in @fig-cens-compare that the shape is almost identical but the censored model is shifted upwards. 
+If we plot the fitted spline from both models, we see in @fig-cens-compare that the shape is almost identical but the censored model is shifted upwards. 
 
 ```{r}
 #| label: fig-cens-compare
@@ -902,12 +905,23 @@ ggplot(
   color_scale
 ```
 
-Lastly, we'll also fit the interaction model using a censored normal distribution, again with `r n_pids_sample` participants.
+Lastly, we'll also fit the interaction model using a censored normal distribution, with `r min(n_pids_sample, nlevels(dat_pre$pid))` participants.
 
 ```{r}
 #| label: cens-pre-interaction
+#| results: hide
 set.seed(5454545)
-tmp_pre <- filter(dat_pre, pid %in% sample(unique(pid), n_pids_sample))
+tmp_pre <- filter(
+    dat_pre,
+    pid %in% sample(
+        unique(pid),
+        # avoid taking sample larger than population 
+        min(
+            n_pids_sample,
+            nlevels(pid)
+        )
+    )
+)
 
 fit3_b <- brm(
   mood ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps),
