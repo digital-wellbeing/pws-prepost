@@ -5,6 +5,7 @@ project:
   render:
     - wrangle.qmd
     - analyze.qmd
+    - continuous-time.qmd
 
 author:
   - name: Matti Vuorre
@@ -14,6 +15,13 @@ author:
     affiliation:
       - ref: a
       - ref: b
+  - name: Kristoffer Magnusson
+    orcid: 0000-0003-0713-0556
+    email: kristoffer.magnusson@ki.se
+    url: https://rpsychologist.com
+    affiliation:
+      - ref: b
+      - ref: c
   - name: Nick Ballou
     orcid: 0000-0003-4126-0696
     affiliation:
@@ -27,6 +35,8 @@ affiliations:
     name: Tilburg University
   - id: b
     name: University of Oxford
+  - id: c
+    name: Karolinska Institutet
 
 date: 2023-09-19
 bibliography: bibliography.bib

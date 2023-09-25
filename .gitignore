@@ -11,6 +11,8 @@ data/
 *_cache/
 *_files/
 models/
+figures/
 
 /.quarto/
 .Renviron
+dev/
