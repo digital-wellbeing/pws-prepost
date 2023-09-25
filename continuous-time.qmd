@@ -1068,3 +1068,141 @@ p_cens_pre_interaction <- bind_rows(emm_cens, emm_lmm) |>
   }()
 p_cens_pre_interaction
 ```
+
+### Functional form of `hours` and `pre`
+Here we'll investigate the impact of the assumed functional form of `hours` and `pre`. As can be seen in @fig-lmm-pre-interaction-sens-pre, that impact of the assumed functional form of `pre` has very little impact on the results.
+
+```{r}
+#| label: fig-lmm-pre-interaction-sens-pre
+#| fig-cap: Estimated trends for various functional forms of `pre`
+tmp_models <- list()
+tmp_models[["linear"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-pre-linear.Rds",
+  lmer(
+    mood100 ~ ns4(hours) * pre + (1 + ns4(hours) | pid) + (1 | ps),
+    data = dat_pre
+  )
+)
+tmp_models[["ns2"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-pre-ns2.Rds",
+    lmer(
+      mood100 ~ ns4(hours) * ns(pre, 2) + (1 + ns4(hours) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models[["ns3"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-pre-ns3.Rds",
+    lmer(
+      mood100 ~ ns4(hours) * ns(pre, 3) + (1 + ns4(hours) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models[["ns4"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-pre-ns4.Rds",
+    lmer(
+      mood100 ~ ns4(hours) * ns(pre, 4) + (1 + ns4(hours) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models[["ns5"]] <- fit3
+
+get_trend_by_model <- function(fit, model_label) {
+  emm <- emmeans(
+    fit,
+    ~ hours + pre,
+    at = list(
+      hours = seq(0, 3, length.out = 100),
+      pre = pre_values
+    ),
+    lmer.df = "asymp"
+  )
+  as.data.frame(emm) |>
+    mutate(
+      pre = factor(
+        round(pre),
+        labels = pre_labels,
+      ),
+      model = model_label
+    )
+}
+tmp_p <- map2(
+  tmp_models,
+  names(tmp_models),
+  \(fit, lab) get_trend_by_model(fit, lab)
+) |>
+  bind_rows()
+p_pre_x_sens <- tmp_p |>
+  ggplot(
+    aes(
+      hours,
+      emmean,
+      group = interaction(model, pre),
+      color = model,
+      linetype = pre
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL,
+      fill = model,
+      color = NULL
+    ),
+    alpha = 0.10,
+    show.legend = FALSE
+  ) +
+  scale_color_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  scale_x_hours
+p_pre_x_sens
+```
+
+
+Next, we'll lok at `hours`. In @fig-lmm-pre-interaction-sens-hours we see that the results aren't fundamentally different using splines with less degrees of freedom, or even a linear term. 
+
+```{r}
+#| label: fig-lmm-pre-interaction-sens-hours
+#| fig-cap: Estimated trends for various functional forms of `hours`  
+tmp_models2 <- list()
+tmp_models2[["linear"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-hours-linear.Rds",
+  lmer(
+    mood100 ~ hours * ns(pre, 5) + (1 + hours | pid) + (1 | ps),
+    data = dat_pre
+  )
+)
+tmp_models2[["ns2"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-hours-ns2.Rds",
+    lmer(
+      mood100 ~ ns(hours, 2) * ns(pre, 5) + (1 + ns(hours, 2) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models2[["ns3"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-hours-n3.Rds",
+  lmer(
+    mood100 ~ ns(hours, 3) * ns(pre, 5) + (1 + ns(hours, 3) | pid) + (1 | ps),
+    data = dat_pre,
+  )
+)
+tmp_models2[["poly2"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-hours-poly2.Rds",
+  lmer(
+    mood100 ~ poly(hours, 2) * ns(pre, 5) + (1 + poly(hours, 2) | pid) + (1 | ps),
+    data = dat_pre,
+  )
+)
+tmp_models2[["ns4"]] <- fit3
+tmp_p <- map2(
+  tmp_models2,
+  names(tmp_models2),
+  \(fit, lab) get_trend_by_model(fit, lab)
+) |>
+  bind_rows()
+p_pre_x_sens %+% tmp_p 
+```
