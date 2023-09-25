@@ -5,6 +5,7 @@ project:
   render:
     - wrangle.qmd
     - analyze.qmd
+    - continuous-time.qmd
 
 author:
   - name: Matti Vuorre
