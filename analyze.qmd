@@ -64,9 +64,9 @@ if (!is.na(N_SUBSET)) {
 }
 ```
 
-# Methods
+## Methods
 
-## Participants
+### Participants
 
 ```{r}
 #| label: demographics-load
@@ -94,7 +94,7 @@ These participants median age (1st & 9th deciles) was `r a`, and four most frequ
 
 The study procedures were granted ethical approval by Oxford University’s Central University Research Ethics Committee (SSH_OII_CIA_21_011). All participants provided informed consent to participate and reported being 18 years or older.
 
-## Data analysis
+### Data analysis
 
 ```{r}
 #| label: data-wrangle-for-analysis
@@ -169,7 +169,7 @@ pairs(fit$fit, pars = variables(fit)[1:7])
 
 We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and used the brms package to estimate, via Stan's HMC sampling procedures, and post-process the models [@burknerBrmsPackageBayesian2017; @standevelopmentteamStanModelingLanguage2022]. We drew `r number2(ndraws(fit))` samples from the posterior distribution using brms' default prior distributions on all parameters, and used numerical and graphical checks to ensure model convergence and adequacy.
 
-# Results
+## Results
 
 ```{r}
 #| label: fig-descriptives
@@ -583,7 +583,7 @@ posterior_pop |>
   )
 ```
 
-# Abstract
+## Abstract
 
 ```{glue}
 #| results: asis
@@ -593,7 +593,7 @@ Although hundreds of millions of individuals play video games, a medium sometime
 ```
 
 
-# Bibliography
+## Bibliography
 
 ::: {#refs}
 :::
