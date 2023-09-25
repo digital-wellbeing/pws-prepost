@@ -31,8 +31,6 @@ library(scales)
 library(cmdstanr)
 library(posterior)
 library(brms)
-library(ggstance)
-library(ggdist)
 library(patchwork)
 library(tidyverse)
 library(splines)
@@ -83,43 +81,11 @@ scale_x_hours <- list(
 Load the data and remove observations that occurred more than 3 hours into a session.
 ```{r}
 #| label: load-data
-dat <- read_csv(
-  "data/study_prompt_answered.csv",
-  col_select = c(
-    pid,
-    time = Time_utc,
-    duration = CurrentSessionLength,
-    prompt = LastStudyPromptType,
-    mood = response
-  )
-) |>
-  mutate(
-    pid = factor(pid),
-    mood = mood / 1000
-  )
-
-# Create sessions using heuristics below
-dat <- dat |>
-  arrange(pid, time) |>
-  mutate(
-    i = row_number(),
-    # Observation is in a new session if this...
-    new_session =
-    # is the first total observation,
-      i == 1 |
-        # session duration is zero,
-        (duration == 0) |
-        # session is shorter than previous session (ticker has reset),
-        (duration < lag(duration, default = 0)) |
-        # or if more than 30 minutes since previous observation.
-        (time > lag(time) + minutes(30)),
-    # Session number is the cumulative sum of new sessions...
-    session = cumsum(new_session),
-    # ... per person
-    .by = pid
-  ) |>
-  select(-c(i, new_session))
-
+dat <- read_rds("data/data-raw.rds")
+if (!is.na(N_SUBSET)) {
+  pid_subset <- sample(unique(dat$pid), N_SUBSET)
+  dat <- filter(dat, pid %in% pid_subset)
+}
 dat <- dat |>
   mutate(
     duration = duration - duration[1],
@@ -161,7 +127,7 @@ Not all participants contributed an equal number of observations. We'll calculat
 #| label: tbl-session-max-prop
 #| tbl-cap: Proportion of participants that had at least on session last longer than gt_* hours
 dat |> 
-  summarize(
+  summarise(
     max = max(hours), .by = c(pid)
   ) |> 
   summarise(
@@ -177,6 +143,7 @@ dat |>
 
 ```{r}
 #| label: define-spline
+#| code-fold: show
 ns4 <- function(x) {
   ns(
     x,
@@ -190,6 +157,7 @@ The main model is a LMM, we include random effects for each piece of the spline 
 
 ```{r}
 #| label: lmm-ns4
+#| code-fold: show
 fit <- fit_cached(
   "models/lmm-ns4.Rds",
   lmer(
@@ -408,34 +376,12 @@ p_int_sd_change <- map(
 p_int_sd_change
 ```
 
-```{r}
-#| label: fig-session-change
-#| echo: false
-#| fig-width: 8
-#| fig-height: 5
-p_comb <- (p_curve) /
-  (
-    p_int_sd +
-      p_int_sd_change +
-      plot_layout(guides = "collect") &
-      theme(legend.position = "bottom")
-  ) +
-  plot_annotation(tag_levels = "A")
-
-p_comb
-ggsave(
-  "figures/fig-session-change.png",
-  p_comb,
-  width = 8,
-  height = 5.5
-)
-```
-
 ### Pretest x time continuous interaction
 Modeling the relationship between baseline wellbeing and change using random effects is limited. Here we'll fit a separate interaction model to the subset of participants that began their session by answering a mood question. This allows us to explicitly model the interaction between the pretest values and the within-session change, without having to infer this from the multivariate normal distribution of the random effects. This also allows us to model this as a non-linear relationship. 
 
 ```{r}
 #| label: lmer-pre-interaction
+#| code-fold: show
 dat_pre <- dat |>
   filter(
     # Session has a wellbeing measure at time = 0
@@ -464,7 +410,8 @@ This model included `r number2(ngrps(fit3)["pid"])` participants, with a total o
 Calculate pre values we are interested in plotting.
 
 ```{r}
-#| label: pre-sum
+#| label: tbl-pre-sum
+#| tbl-cap: Average mood levels the start of a session
 pre_sum <- dat_pre |>
   summarise(
     pre_mean = median(pre),
@@ -479,7 +426,8 @@ kable(pre_sum, digits = 2)
 
 
 ```{r}
-#| label: pre-sd-values
+#| label: tbl-pre-sd-values
+#| tbl-cap: Distribution of average mood levels at the start of a session
 pre_values <- pre_sum$mean + pre_sds * pre_sum$sd
 data.frame(
   pre = pre_values,
@@ -603,6 +551,7 @@ Create figures for the manuscript.
 #| label: fig-ms-interaction
 #| fig-height: 4
 #| fig-width: 8
+#| fig-cap: Figure included in manuscript
 
 scale_x_hours2 <- list(
   scale_x_continuous(
@@ -651,6 +600,7 @@ And this figure.
 #| label: fig-ms-no-interaction
 #| fig-height: 4
 #| fig-width: 8
+#| fig-cap: Figure shown in manuscript
 p_tmp <- (
   p_curve + labs(x = NULL, y = "Mood")
   ) / (
@@ -701,14 +651,23 @@ tbl_x_change |>
 ## Sensitivity checks
 ### Censoring
 
-The main model used a censored normal distribution. A similar model would take a long time to fit here, so we'll refit the continuous time model using a censored normal distribution on a random subset of 1000 participants.
+```{r}
+#| label: n-pids-sample
+#| echo: false
+n_pids_sample <- case_when(
+  is.na(N_SUBSET) ~ 1000,
+  !is.na(N_SUBSET) ~ min(N_SUBSET, 1000)
+)
+```
+
+The main discrete time model used a censored normal distribution. A similar model would take a long time to fit here, so we'll refit the continuous time model using a censored normal distribution on a random subset of `r n_pids_sample` participants.
 
 ```{r}
 #| label: brms-cens
 set.seed(345345)
 tmp <- filter(
   dat,
-  pid %in% sample(unique(pid), 1000)
+  pid %in% sample(unique(pid), n_pids_sample)
 )
 
 fit_b <- brm(
@@ -942,12 +901,12 @@ ggplot(
   color_scale
 ```
 
-Lastly, we'll also fit the interaction model using a censored normal distribution, again with 1000 participants.
+Lastly, we'll also fit the interaction model using a censored normal distribution, again with `r n_pids_sample` participants.
 
 ```{r}
 #| label: cens-pre-interaction
 set.seed(5454545)
-tmp_pre <- filter(dat_pre, pid %in% sample(unique(pid), 1000))
+tmp_pre <- filter(dat_pre, pid %in% sample(unique(pid), n_pids_sample))
 
 fit3_b <- brm(
   mood ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps),
@@ -1162,7 +1121,7 @@ p_pre_x_sens
 ```
 
 
-Next, we'll lok at `hours`. In @fig-lmm-pre-interaction-sens-hours we see that the results aren't fundamentally different using splines with less degrees of freedom, or even a linear term. 
+Next, we'll look at `hours`. In @fig-lmm-pre-interaction-sens-hours we see that the results aren't fundamentally different using splines with less degrees of freedom, or even a linear term. 
 
 ```{r}
 #| label: fig-lmm-pre-interaction-sens-hours
