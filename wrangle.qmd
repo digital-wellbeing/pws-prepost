@@ -17,13 +17,20 @@ knitr::opts_chunk$set(
 )
 ```
 
+Load some packages:
+
 ```{r}
 #| label: packages
 #| cache: false
 
+library(patchwork)
 library(tidyverse)
 source("R/functions.R")
 ```
+
+## Raw data
+
+Download data from OSF:
 
 ```{r}
 #| label: data-download
@@ -43,6 +50,8 @@ if (!file.exists(path)) {
   )
 }
 ```
+
+Load data and rename and rescale variables:
 
 ```{r}
 #| label: data-load
@@ -143,11 +152,10 @@ s$n_obs_missing <- number2(nrow(filter(dat, is.na(mood))))
 s$n_ses <- number2(nrow(count(dat, pid, session)))
 ```
 
+## Save data
+
 ```{r}
 dir.create("data", FALSE)
 saveRDS(dat, "data/data.rds")
-saveRDS(dat_raw, "data/data-raw.rds")
-saveRDS(s, "data/s.rds")
-saveRDS(sraw, "data/sraw.rds")
 ```
 
