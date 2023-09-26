@@ -65,91 +65,157 @@ dat <- read_csv(
     prompt = LastStudyPromptType,
     mood = response
   )
-) |>
+)
+dat <- dat |> 
   mutate(
     pid = factor(pid),
-    mood = mood / 1000
+    # Mood to 0-100 scale
+    mood = mood / 10, 
+    # hours indicates session duration in hours
+    hours = duration / 60,
+    .keep = "unused"
   )
+```
 
-# Calculate raw data summaries
-sraw <- list()
-sraw$n_res <- dat |>
-  count(prompt)
-sraw$n_res_total <- number2(sum(sraw$n_res$n))
-sraw$n_res <- sraw$n_res |>
-  mutate(n = number2(n)) |>
-  pivot_wider(names_from = prompt, values_from = n)
-sraw$n_sub <- number2(length(unique(dat$pid)))
+## Sessions
 
-# Create sessions using heuristics below
-dat <- dat |>
-  arrange(pid, time) |>
+Mood responses were recorded with a session length indicator, which was reset to 0 when players started the game. We therefore create a session indicator that increments from 1 whenever the observation's session duration is less than the previous one.
+
+```{r}
+#| label: session-indicator-create
+dat <- dat |> 
+  # filter(hours <= 5) |> 
+  arrange(pid, time) |> 
   mutate(
-    i = row_number(),
-    # Observation is in a new session if this...
-    new_session =
-      # is the first total observation,
-      i == 1 |
-      # session duration is zero,
-      (duration == 0) |
-      # session is shorter than previous session (ticker has reset),
-      (duration < lag(duration, default = 0)) |
-      # or if more than 30 minutes since previous observation.
-      (time > lag(time) + minutes(30)),
-    # Session number is the cumulative sum of new sessions...
+    new_session = hours < lag(hours, default = 999),
     session = cumsum(new_session),
-    # ... per person
     .by = pid
-  ) |>
-  select(-c(i, new_session))
+  ) |> 
+  select(-c(new_session)) |> 
+  mutate(ps = paste(pid, session, sep = "_"))
 
+str_glue(
+  "Raw data\n",
+  "Players: {number2(length(unique(dat$pid)))}\n",
+  "Sessions: {number2(length(unique(dat$ps)))}\n",
+  "Observations: {number2(nrow(dat))}\n"
+)
+```
 
-# Filter data
-dat_raw <- dat
+Roughly 10% of sessions should have a mood prompt at login. However, many sessions are short and only have the login prompt when just the response data is considered. Therefore, in the current data the proportion will be somewhat greater than 10%.
+
+```{r}
+# What proportion of sessions have a login mood prompt?
+dat |> 
+  mutate(
+    has_login_prompt = any(hours == 0 & prompt == "Wellbeing"),
+    .by = ps
+  ) |> 
+  distinct(ps, has_login_prompt) |> 
+  summarise(mean(has_login_prompt))
+```
+
+## Response types
+
+We then filter out all but the mood (Wellbeing) item responses
+
+```{r}
+#| label: mood-filter
+
 # Include only wellbeing responses that occurred
 # in sessions with both "pre" and "post" measures
 dat <- dat |>
   filter(prompt == "Wellbeing") |>
   select(-prompt)
 
-# Count of data with all wellbeing observations
-dat_total <- dat |>
-  summarise(
-    n_total = n(),
-    n_players = length(unique(pid))
-  )
-
-# Include only sessions with "pre-" and "post" measure(s)
-dat <- dat |>
-  filter(
-    # Session has a wellbeing measure at time = 0
-    duration[1] == 0,
-    # Session has at least two non-missing wellbeing measures 
-    # (e.g. pre + 1 post)
-    sum(!is.na(mood)) > 1,
-    .by = c(pid, session)
-  )
-
-# Count of data to be used in these analyses
-dat_filtered <- dat |>
-  summarise(
-    n_total = n(),
-    n_players = length(unique(pid))
-  )
-
-# Summary
-bind_rows(
-  "total" = dat_total,
-  "filtered" = dat_filtered,
-  .id = "Data"
+str_glue(
+  "Mood-only data\n",
+  "Players: {number2(length(unique(dat$pid)))}\n",
+  "Sessions: {number2(length(unique(dat$ps)))}\n",
+  "Observations: {number2(nrow(dat))}\n"
 )
+```
 
-# Summaries of filtered data
-s <- list()
-s$n_sub <- number2(length(unique(dat$pid)))
-s$n_obs <- number2(nrow(dat))
-s$n_obs_missing <- number2(nrow(filter(dat, is.na(mood))))
-s$n_ses <- number2(nrow(count(dat, pid, session)))
+## EDA / outliers / exclusions
+
+At this point the data table contains all in-game mood responses of all sessions. It might be reasonable to do some filtering of e.g. long sessions.
+
+```{r}
+#| label: fig-session-durations
+#| fig-height: 3
+#| fig-cap: Summaries of session durations. All x-axes are truncated at 10 hours.
+
+p_durations <- dat |> 
+  filter(hours == max(hours), .by = ps) |> 
+  ggplot(aes(hours)) +
+  scale_x_continuous(
+    "Session duration",
+    expand = expansion(c(0.05, 0.05))
+  ) +
+  scale_y_continuous(
+    "Sessions",
+    expand = expansion(c(0, 0.05))
+  ) +
+  coord_cartesian(xlim = c(0, 10)) +
+  geom_histogram(binwidth = 0.33)
+
+p_mean_durations <- dat |> 
+  filter(hours == max(hours), .by = ps) |> 
+  summarise(hours = mean(hours), n = n(), .by = pid) |> 
+  ggplot(aes(hours)) +
+  scale_x_continuous(
+    "Mean session duration",
+    expand = expansion(c(0.05, 0.05))
+  ) +
+  scale_y_continuous(
+    "Players",
+    expand = expansion(c(0, 0.05))
+  ) +
+  coord_cartesian(xlim = c(0, 10)) +
+  geom_histogram(binwidth = 0.33)
+
+p_ecdf_durations <- dat |> 
+  filter(hours == max(hours), .by = c(session, pid)) |> 
+  ggplot(aes(hours)) +
+  scale_x_continuous(
+    "Session duration",
+    expand = expansion(c(0.05, 0.05))
+  ) +
+  scale_y_continuous(
+    "Cumulative proportion",
+    expand = expansion(0.01),
+    breaks = (0:10)/10
+  ) +
+  stat_ecdf() +
+  coord_cartesian(xlim = c(0, 10))
+
+p_durations | p_mean_durations | p_ecdf_durations
+
+dat <- dat |> 
+  filter(hours <= 5)
+
+str_glue(
+  "Mood-only 5<h session data\n",
+  "Players: {number2(length(unique(dat$pid)))}\n",
+  "Sessions: {number2(length(unique(dat$ps)))}\n",
+  "Observations: {number2(nrow(dat))}\n"
+)
+```
+
+As with many things concerning numbers, we are happy with 5. Finally we just drop observations where participants skipped the prompt
+
+```{r}
+#| label: drop-missing-data
+
+dat <- dat |> 
+  drop_na()
+
+str_glue(
+  "Mood-only 5<h session non-missing data\n",
+  "Players: {number2(length(unique(dat$pid)))}\n",
+  "Sessions: {number2(length(unique(dat$ps)))}\n",
+  "Observations: {number2(nrow(dat))}\n"
+)
 ```
 
 ## Save data
