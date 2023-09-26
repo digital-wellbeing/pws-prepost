@@ -1,4 +1,4 @@
-# A case study of powerwash simulator
+## A case study of powerwash simulator
 
 Matti Vuorre, Nick Ballou, Andy Przybylski
 

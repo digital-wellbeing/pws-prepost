@@ -1,11 +1,29 @@
-title: "Mood increases during video game play: A naturalistic observational case study of PowerWash Simulator"
-description: Computational notebook supporting our manuscript
 
 project:
+  type: book
+  output-dir: _docs
   render:
+    - index.qmd
     - wrangle.qmd
-    - analyze.qmd
-    - continuous-time.qmd
+    # - analyze.qmd
+    # - continuous-time.qmd
+
+book:
+  title: "PWS: Mood"
+  description: Computational notebook supporting our manuscript
+  chapters:
+    - index.qmd
+    - wrangle.qmd
+    # - analyze.qmd
+    # - continuous-time.qmd
+
+format:
+  html:
+    code-fold: true
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    html-math-method: katex
 
 author:
   - name: Matti Vuorre
@@ -40,8 +58,3 @@ affiliations:
 
 date: 2023-09-19
 bibliography: bibliography.bib
-format:
-  html:
-    code-fold: true
-    toc: true
-    toc-depth: 2
