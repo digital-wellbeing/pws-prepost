@@ -1,6 +1,4 @@
----
-title: "Continuous time"
----
+# Continuous time {#sec-continuous-time}
 
 
 ```{r}
@@ -15,7 +13,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-In the main analysis in [Analyze]() we focused on contrasting the mood at the beginning of a session with the average mood during session. In this document we focus on two additional research questions:
+In the main analysis in @sec-analyze we focused on contrasting the mood at the beginning of a session with the average mood during session. In this document we focus on two additional research questions:
 
 1. How does mood change during a session?
 2. Is change during a session related to the participants' pretest mood? 

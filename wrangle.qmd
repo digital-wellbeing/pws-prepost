@@ -1,6 +1,4 @@
----
-title: Wrangle
----
+# Wrangle {#sec-wrangle}
 
 This notebook wrangles the raw data on OSF to something more suitable for our current analyses.
 
