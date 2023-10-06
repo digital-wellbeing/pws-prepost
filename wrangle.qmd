@@ -24,6 +24,7 @@ Load some packages:
 library(patchwork)
 library(tidyverse)
 source("R/functions.R")
+source("R/common.R")
 ```
 
 ## Raw data
@@ -67,8 +68,8 @@ dat <- read_csv(
 dat <- dat |> 
   mutate(
     pid = factor(pid),
-    # Mood to 0-100 scale
-    mood = mood / 10, 
+    # Mood to 0-1 scale
+    mood = mood / 1000, 
     # hours indicates session duration in hours
     hours = duration / 60,
     .keep = "unused"
@@ -81,8 +82,8 @@ Mood responses were recorded with a session length indicator, which was reset to
 
 ```{r}
 #| label: session-indicator-create
+
 dat <- dat |> 
-  # filter(hours <= 5) |> 
   arrange(pid, time) |> 
   mutate(
     new_session = hours < lag(hours, default = 999),
@@ -103,6 +104,8 @@ str_glue(
 Roughly 10% of sessions should have a mood prompt at login. However, many sessions are short and only have the login prompt when just the response data is considered. Therefore, in the current data the proportion will be somewhat greater than 10%.
 
 ```{r}
+#| label: check-login-prompt-rate
+
 # What proportion of sessions have a login mood prompt?
 dat |> 
   mutate(
@@ -216,9 +219,36 @@ str_glue(
 )
 ```
 
+Other stuff
+
+```{r}
+dat <- dat |>
+  mutate(
+    post = factor(
+      row_number() > 1,
+      levels = c(FALSE, TRUE),
+      labels = c("0", "1")
+    ),
+    .by = c(pid, session)
+  ) |>
+  # Censoring indicator
+  mutate(
+    cl = case_when(
+      mood == 0 ~ "left",
+      mood == 1 ~ "right",
+      TRUE ~ "none"
+    )
+  )
+
+contrasts(dat$post) <- c(-0.5, 0.5)
+```
+
+
 ## Save data
 
 ```{r}
+#| label: data-save
+
 dir.create("data", FALSE)
 saveRDS(dat, "data/data.rds")
 ```

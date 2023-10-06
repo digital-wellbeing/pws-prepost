@@ -39,61 +39,16 @@ library(knitr)
 library(rstanarm)
 source("R/functions.R")
 source("R/fit_cached.R")
-```
-
-```{r}
-#| label: options
-#| cache: false
-
-N_CORES <- as.numeric(Sys.getenv("N_CORES", unset = 1))
-N_THREADS <- as.numeric(Sys.getenv("N_THREADS", unset = 2))
-N_ITER <- as.numeric(Sys.getenv("N_ITER", unset = 2000))
-N_SUBSET <- as.numeric(Sys.getenv("N_SUBSET"))
-options(
-  mc.cores = N_CORES,
-  brms.backend = "cmdstanr"
-)
-theme_set(
-  theme_linedraw(base_size = 10) +
-    theme(
-      strip.background = element_rect(
-        fill = NA,
-        color = NA
-      ),
-      strip.text = element_text(
-        colour = "black", hjust = 0
-      ),
-      axis.text = element_text(
-        size = rel(0.75)
-      )
-    )
-)
-scale_x_hours <- list(
-  scale_x_continuous(
-  breaks = c(0, 15/60, 0.5, 45/60, 1, 2, 3), 
-  labels = c(0, "15m", "30m", "45m", "1h", "2h", "3h")
-  )
-)
+source("R/common.R")
 ```
 
 ## Data
-Load the data and remove observations that occurred more than 3 hours into a session.
+Load the data.
 ```{r}
 #| label: load-data
+
 dat <- read_rds("data/data.rds")
 
-dat <- dat |>
-  filter(
-    !is.na(mood),
-    hours <= 3
-  ) |>
-  mutate(
-    cl = case_when(
-      mood == 0 ~ "left",
-      mood == 100 ~ "right",
-      TRUE ~ "none"
-    ),
-  )
 if (!is.na(N_SUBSET)) {
   pid_subset <- sample(unique(dat$pid), N_SUBSET)
   dat <- filter(dat, pid %in% pid_subset) |> 
@@ -166,6 +121,7 @@ The spline is plotted in @fig-plot-curve, and we can see that there's a small bu
 #| fig-cap: Estimated mood during a play session
 #| fig-height: 3
 #| fig-width: 8
+
 hours <- seq(0, 3, length.out = 100)
 emm1 <- emmeans(
   fit,
@@ -185,7 +141,7 @@ p_curve <- as.data.frame(emm1) |>
   ) +
   labs(
     x = "Session duration (hours)",
-    y = "Mood (0 - 100)"
+    y = "Mood (0 - 1)"
   ) +
   scale_x_hours
 p_curve
@@ -198,6 +154,7 @@ p_curve
 #| fig-cap: Estimated difference in mood over a session compared to the start of a session
 #| fig-height: 3
 #| fig-width: 8
+
 d_change <- emmeans::contrast(
   emm1,
   method = "trt.vs.ctrl",
@@ -211,6 +168,9 @@ d_change <- emmeans::contrast(
 
 p_change <- d_change |>
   ggplot(aes(hours, estimate)) +
+  scale_y_continuous(
+    expand = expansion(c(0.1, 0.1))
+  ) +
   geom_line() +
   geom_ribbon(
     aes(
@@ -219,7 +179,6 @@ p_change <- d_change |>
     ),
     alpha = 0.25
   ) +
-  lims(y = c(0, 10)) +
   labs(x = "Session duration (hours)") +
   scale_x_hours
 p_change
@@ -241,7 +200,7 @@ emmeans(
   ) |>
   confint() |>
   kable(
-    digits = 2
+    digits = 3
   )
 ```
 
@@ -467,7 +426,7 @@ emm <- emmeans(
 p_pre_x <- as.data.frame(emm) |>
   mutate(
     pre = factor(
-      round(pre), 
+      pre,
       labels = pre_labels_x
       )
   ) |>
@@ -510,7 +469,7 @@ Let's also calculate the within-session change for the interaction model.
 #| fig-width: 8
 source("R/get_change_by_pre.R")
 d_x_change <- data.frame(
-  pre = round(pre_values),
+  pre = pre_values,
   label = pre_labels_x
 ) |>
   pmap(\(pre, label) get_change_by_pre(
@@ -562,8 +521,8 @@ p_pre_x_change
 Create figures for the manuscript.
 ```{r}
 #| label: fig-ms-interaction
-#| fig-height: 4
-#| fig-width: 8
+#| fig-height: 3.5
+#| fig-width: 7
 #| fig-cap: Figure included in manuscript
 
 scale_x_hours2 <- list(
@@ -577,28 +536,25 @@ p_tmp <- (
     p_pre_x + 
       facet_wrap(~pre, ncol = 4) +
       scale_x_hours2 +
-      labs(y = "Mood", x = NULL) +
-      theme(plot.margin = margin(0, 0, 0, 0, "pt"))
-    ) / 
+      labs(y = "Mood") +
+      theme(axis.title.x = element_blank())
+  ) / 
     (
       p_pre_x_change +
         scale_x_hours2 +
         labs(y = "Change", x = "Duration") +
-        theme(plot.margin = margin(0, 0, 0, 0, "pt"))
-      ) 
-    ) +
-   plot_annotation(tag_levels = "A") +
-  plot_layout(
-    heights = c(2, 2),
-    widths = c(8, 8),
-    guides = "collect"
-  ) & theme(legend.position = "bottom") 
+        theme()
+    ) 
+) +
+  plot_annotation(tag_levels = "A") &
+  theme(legend.position = "none") 
 p_tmp
 ```
 
 ```{r}
 #| label: ggsave-fig-ms-interaction
 #| echo: false
+
 ggsave(
   "figures/fig-pre-x-change.png", 
   p_tmp, 
@@ -611,9 +567,10 @@ And this figure.
 
 ```{r}
 #| label: fig-ms-no-interaction
-#| fig-height: 4
-#| fig-width: 8
+#| fig-height: 3
+#| fig-width: 6
 #| fig-cap: Figure shown in manuscript
+
 p_tmp <- (
   p_curve + labs(x = NULL, y = "Mood")
   ) / (
@@ -625,6 +582,7 @@ p_tmp
 ```{r}
 #| label: ggsave-fig-ms-no-interaction
 #| echo: false
+
 ggsave(
   "figures/fig-change.png", 
   p_tmp, 
@@ -1106,7 +1064,7 @@ get_trend_by_model <- function(fit, model_label) {
   as.data.frame(emm) |>
     mutate(
       pre = factor(
-        round(pre),
+        pre,
         labels = pre_labels_x,
       ),
       model = model_label

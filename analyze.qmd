@@ -26,45 +26,21 @@ library(ggdist)
 library(patchwork)
 library(tidyverse)
 source("R/functions.R")
-```
-
-```{r}
-#| label: options
-#| cache: false
-
+source("R/fit_cached.R")
+source("R/common.R")
 dir.create("models", FALSE)
-N_CORES <- as.numeric(Sys.getenv("N_CORES", unset = 1))
-N_THREADS <- as.numeric(Sys.getenv("N_THREADS", unset = 2))
-N_ITER <- as.numeric(Sys.getenv("N_ITER", unset = 2000))
-N_SUBSET <- as.numeric(Sys.getenv("N_SUBSET"))
-options(
-  mc.cores = N_CORES,
-  brms.backend = "cmdstanr"
-)
-theme_set(
-  theme_linedraw(base_size = 10) +
-    theme(
-      strip.background = element_rect(fill = NA, color = NA),
-      strip.text = element_text(colour = "black", hjust = 0),
-      axis.text = element_text(size = rel(0.75)),
-      panel.grid = element_blank()
-    )
-)
 ```
 
 ```{r}
 dat <- readRDS("data/data.rds")
-s <- readRDS("data/s.rds")
-sraw <- readRDS("data/sraw.rds")
+
 if (!is.na(N_SUBSET)) {
   pid_subset <- sample(unique(dat$pid), N_SUBSET)
   dat <- filter(dat, pid %in% pid_subset)
 }
 ```
 
-## Methods
-
-### Participants
+## Participants
 
 ```{r}
 #| label: demographics-load
@@ -77,101 +53,35 @@ demo <- read_csv(
 
 a <- quantile(demo$age, probs = c(.5, .1, .9), na.rm = TRUE)
 a <- str_glue("{a[1]} ({a[2]}, {a[3]})")
-g <- count(demo, gender, sort = TRUE) |>
+```
+
+- N participants: `r number2(length(unique(dat$pid)))`
+- N sessions: `r number2(length(unique(dat$ps)))`
+- age: `r a`
+- gender:
+
+```{r}
+#| label: demographics-gender
+
+count(demo, gender, sort = TRUE) |>
   mutate(p = n / sum(n)) |>
   mutate(x = str_glue("{gender} ({number2(n)}, {percent2(p)})"))
+```
+
+- countries:
+```{r}
+#| label: demographics-countries
+
 n_countries <- length(unique(demo$country[!is.na(demo$country)]))
-countries <- count(demo, country, sort = TRUE) |>
+count(demo, country, sort = TRUE) |>
   mutate(p = n / sum(n)) |>
   mutate(x = str_glue("{country} ({number2(n)}, {percent2(p)})"))
 ```
 
-The PowerWash Simulator case study database contains `r sraw$n_res_total` psychological item responses from `r sraw$n_sub` individuals. In this study, we only studied subjective well-being (mood), so did not consider the other five types of item responses in the database (enjoyment, focus, autonomy, competence, and immersion). Therefore, here we used data from `r s$n_sub` participants who provided `r s$n_obs` mood responses (`r s$n_obs_missing` with missing values, which we ignored) from `r s$n_ses` gameplay sessions.
-
-These participants median age (1st & 9th deciles) was `r a`, and four most frequent responses to gender were `r g$x[1:4]`. They hailed from `r n_countries`, with four most represented countries being `r countries$x[1:4]`.
-
-The study procedures were granted ethical approval by Oxford University’s Central University Research Ethics Committee (SSH_OII_CIA_21_011). All participants provided informed consent to participate and reported being 18 years or older.
-
-### Data analysis
-
-```{r}
-#| label: data-wrangle-for-analysis
-
-dat <- dat |>
-  mutate(
-    post = factor(
-      row_number() > 1,
-      levels = c(FALSE, TRUE),
-      labels = c("0", "1")
-    ),
-    .by = c(pid, session)
-  ) |>
-  mutate(ps = interaction(pid, session, sep = "_")) |>
-  mutate(
-    cl = case_when(
-      mood == 0 ~ "left",
-      mood == 1 ~ "right",
-      TRUE ~ "none"
-    )
-  )
-```
-
-Our research question concerned the difference between players’ mood at the beginning of each session (pre-play) and during the subsequent play session (during play). It is important to understand that this contrast does not embed a causal hypothesis: Players could begin (and end) their play ses-sions for whatever reason, and these reasons are likely to confound the pre -- during contrast. For example, a player might come home after a stressful day at work, and sit down to play some PWS. During this play session, their mood would improve because they are at home vs. stressful work environment, and would show as a greater during play mood compared to pre-play mood: Reasons behind starting a play session are likely to contribute to the pre -- during contrast and we are unable to disentangle those from any changes actually caused by play.
-
-We estimated this contrast within a censored three-level hierarchical regression model. We specified a censored gaussian model because mood was measured with a VAS. Ignoring the censoring inherent in VAS responses can confound changes in the mean with changes in the spread of mood, and leave the contrast susceptible to ceiling or floor effects. We then modelled mean mood on an intercept and contrast coded time (pre-play: -0.5; during play: 0.5), and allowed both parameters to vary randomly across players. In addition, we modelled random intercepts over player-sessions because over time, mood is susceptible to myriad other influences. Although equal variances across people in such naturalistic observation seem unlikely, we fixed this parameter to a constant for model identifiability and convergence.
-
-More formally, we modelled each mood response *i* in 1 to `r s$n_obs` from participant *j* in 1 to `r s$n_sub` and participant-session *k* in 1 to `r s$n_ses` with a normal distribution censored at the VAS limits [0, 1]. We then modelled the distribution's mean ($\eta$) on a population-level intercept ($\beta_0$) and contrast-coded measurement timepoint ($\beta_1$), their random per-player deviations $\alpha$, and a random intercept for player-sessions $\gamma_0$:
-
-\begin{align*}
-\text{mood}_{ijk} &\sim \text{CensNormal}(\eta_{ijk}, \sigma^2, 0, 1), \\
-\eta_{ijk} &= \alpha_0 + \beta_{0j} +
-  (\alpha_1 + \beta_{1j})\text{post}_{ijk} +
-  \gamma_{0k}, \\
-\begin{bmatrix} \alpha_0 \\ \alpha_1 \end{bmatrix} &\sim 
-  \text{MVN}\left(\begin{bmatrix} 0 \\ 0 \end{bmatrix}, 
-  \begin{bmatrix} 
-    \tau_{\alpha_0} &\rho_{{\alpha_0}{\alpha_1}} \\ 
-    \rho_{{\alpha_0}{\alpha_1}} &\tau_{\alpha_1}
-  \end{bmatrix}\right), \\
-  \gamma_0 &\sim \text{Normal}(0, \tau_{\gamma_0}).
-\end{align*}
-
-```{r}
-#| label: model-estimate
-#| cache: false
-
-contrasts(dat$post) <- c(-0.5, 0.5)
-
-model <- bf(mood | cens(cl) ~ 1 + post + (1 + post | pid) + (1 | ps)) +
-  gaussian()
-
-fit <- brm(
-  model,
-  data = dat,
-  silent = 0,
-  threads = N_THREADS,
-  iter = N_ITER,
-  control = list(adapt_delta = .95),
-  file = "models/brm-pre-post-pid-ps-censored"
-)
-```
-
-```{r}
-#| label: model-convergence
-#| eval: false
-
-as_draws(fit, variable = c("b_", "sd_", "cor_"), regex = TRUE) |> 
-  summarise_draws(rhat)
-pairs(fit$fit, pars = variables(fit)[1:7])
-```
-
-We analyzed the data with R [@rcoreteamLanguageEnvironmentStatistical2023] and used the brms package to estimate, via Stan's HMC sampling procedures, and post-process the models [@burknerBrmsPackageBayesian2017; @standevelopmentteamStanModelingLanguage2022]. We drew `r number2(ndraws(fit))` samples from the posterior distribution using brms' default prior distributions on all parameters, and used numerical and graphical checks to ensure model convergence and adequacy.
-
-## Results
+## Descriptives
 
 ```{r}
 #| label: fig-descriptives
-#| include: false
 #| fig-height: 2.2
 #| fig-width: 7
 #| fig-cap: '**A**. Histogram of session durations (note log10 x-axis). **B**. Summary of how many sessions each participant completed. **C**. Histogram of all mood ratings.'
@@ -182,15 +92,17 @@ p0 <- dat |>
     expand = expansion(c(0.01, 0.01)),
   ) +
   scale_y_continuous(
-    expand = expansion(c(0.001, 0.1)),
+    expand = expansion(c(0.001, 0.05)),
   ) +
   geom_histogram(
     col = "white",
-    linewidth = .25
+    bins = 50,
+    linewidth = .25,
+    boundary = 0
   )
 
 dat_session_durations <- dat |>
-  filter(duration == max(duration), .by = c(pid, session))
+  filter(hours == max(hours), .by = c(pid, session))
 
 dat_session_counts <- dat |>
   distinct(pid, session) |>
@@ -198,15 +110,12 @@ dat_session_counts <- dat |>
 
 p_durations <- p0 %+%
   dat_session_durations +
-  aes(duration) +
-  scale_x_log10() +
-  coord_cartesian(xlim = c(5, 900)) +
-  labs(x = "Session duration (minutes)", y = "Sessions")
-
+  aes(hours) +
+  labs(x = "Session duration (hours)", y = "Sessions")
 
 p_sessions <- p0 %+%
   dat_session_counts +
-  coord_cartesian(xlim = c(0, 15)) +
+  coord_cartesian(xlim = c(0, 75)) +
   aes(sessions) +
   labs(x = "Sessions", y = "Participants")
 
@@ -214,33 +123,30 @@ p_mood <- p0 +
   aes(mood) +
   labs(x = "Mood", y = "Responses")
 
-
 (p_durations | p_sessions | p_mood) +
-  plot_annotation(tag_level = "A")
+  plot_annotation(tag_levels = "A")
 ```
 
 ```{r}
 tmp <- list(
-  dat_session_durations$duration,
+  dat_session_durations$hours,
   dat_session_counts$sessions,
   dat$mood,
   dat$mood[dat$post == 0],
   dat$mood[dat$post == 1]
 ) |> 
   map(~median_qi(.x, .width = 0.8, na.rm = TRUE)) |> 
-  map(~str_glue_data(.x, "{y} [{ymin}, {ymax}]"))
+  map(~mutate(.x, across(c(y, ymin, ymax), ~number2(., .01))) |> str_glue_data("{y} [{ymin}, {ymax}]"))
 ```
 
-The median session duration was `r tmp[[1]]` minutes [10 and 90 percentiles]; the median player contributed data from `r tmp[[2]]` sessions, and the median mood was `r tmp[[3]]` (pre-session: `r tmp[[4]]`, during play: `r tmp[[5]]`). 
+The median session duration was `r tmp[[1]]` hours [10 and 90 percentiles]; the median player contributed data from `r tmp[[2]]` sessions, and the median mood was `r tmp[[3]]` (pre-session: `r tmp[[4]]`, during play: `r tmp[[5]]`). 
 
 ```{r}
 #| label: fig-data
 #| include: true
 #| fig-width: 8
-#| fig-height: 5
+#| fig-height: 4.6
 #| fig-cap: "**A**. Representative data from three participants (rows) showing scatterplots of mood responses over that session's (columns) duration. Each session's first mood response is highlighted in red, subsequent reports are blue. **B**. Horizontal histograms of all sessions' mood response for that person, with means and bootstrapped 95%CIs. **C**. Histograms of session-mean (**D**. person-mean) moods before (top) and during (bottom) sessions. **E**. Differences in session-mean (**F**. player-mean) mood differences (during session - pre-play). **G**. Scatterplot of person-mean mood reports at beginning (x-axis) and during game play sessions (y-axis)."
-
-axislabels <- c(0, 0.5, 1.0)
 
 # Plot: Example raw sessions
 set.seed(99)
@@ -249,23 +155,26 @@ dat_example_sessions <- dat |>
   filter(obs_per_session >= 4) |>
   mutate(session = as.numeric(as.factor(session)), .by = pid) |>
   mutate(session_per_person = length(unique(session)), .by = pid)
+
 # default 
-min_sessions <- 4 
+min_sessions <- 8
 n_filtered <- dat_example_sessions |> 
   distinct(pid, session_per_person) |> 
-  filter(session_per_person >= 4) |> 
+  filter(session_per_person >= 8) |> 
   nrow()
+
 # pick anyone if there's not 3 pids with >= 4 sessions
 if(n_filtered < 3) min_sessions <- 0
 dat_example_sessions <- dat_example_sessions |>
- filter(session_per_person >= min_sessions) |>
+  filter(session_per_person >= min_sessions) |>
   arrange(pid, session) |>
   filter(pid %in% sample(unique(pid), 3)) |>
   mutate(Session = str_glue("Session {session}"), Person = str_glue("Person {fct_anon(pid)}"))
 
-p_mood_example_sessions <- dat_example_sessions |> 
+p_mood_example <- dat_example_sessions |> 
+  filter(session <= 8) |> 
   ggplot() +
-  aes(duration / 60, mood, col = post) +
+  aes(hours, mood, col = post) +
   scale_color_brewer(
     "Pre-session measure",
     palette = "Set1",
@@ -277,61 +186,17 @@ p_mood_example_sessions <- dat_example_sessions |>
   scale_y_continuous(
     "Mood",
     limits = c(0, 1),
-    breaks = axislabels,
-    labels = axislabels
   ) +
   geom_point(size = 1.5, alpha = 1) +
   facet_grid(
     rows = vars(Person), 
     cols = vars(Session),
-    scales = "free_x"
+    scales = "fixed"
   ) +
   theme(
     legend.position = "none",
     strip.text.y = element_blank()
   )
-
-p_mood_example_all <- dat_example_sessions |> 
-  mutate(Session = "All sessions") |> 
-  ggplot() +
-  aes(y = mood, x = post, col = post, fill = post) +
-  scale_color_brewer(
-    "Pre-session measure",
-    palette = "Set1",
-    aesthetics = c("color", "fill")
-  ) +
-  scale_x_discrete(
-    "Session",
-    breaks = c(0, 1),
-    labels = c("Pre", "During"),
-    expand = expansion(c(0.2, 2.4))
-  ) +
-  scale_y_continuous(
-    limits = c(0, 1),
-    breaks = axislabels,
-    labels = axislabels
-  ) +
-  stat_summary(
-    fun.data = mean_cl_boot,
-    fatten = 2
-  ) +
-  geom_dots(side = "right", alpha = .33, binwidth = .075) +
-  facet_grid(
-    rows = vars(Person), 
-    cols = vars(Session)
-  ) +
-  theme(
-    axis.text.y = element_blank(), 
-    axis.title.y = element_blank(), 
-    axis.ticks.y = element_blank(), 
-    axis.text.x = element_text(hjust = 0),
-    strip.background.y = element_blank(),
-    legend.position = "none"
-  )
-
-p_mood_example <- (p_mood_example_sessions | p_mood_example_all) +
-  plot_layout(widths = c(92, 8))
-
 
 # Plot: Raw mood histograms at pre and during play
 p_mood_prepost_raw <- dat |> 
@@ -350,8 +215,7 @@ p_mood_prepost_raw <- dat |>
   ) +
   scale_x_continuous(
     "Mood",
-    expand = expansion(c(0.001)),
-    breaks = axislabels
+    expand = expansion(c(0.001))
   ) +
   facet_wrap("post", ncol = 1, scales = "free_y") +
   theme(legend.position = "none")
@@ -383,7 +247,9 @@ p_mood_prepost_players <- p_mood_prepost_sessions %+%
 # Plot: Difference histogram (sessions)
 p_mood_difference_sessions <- p_mood_prepost_sessions$data |> 
   pivot_wider(names_from = post, values_from = mood) |> 
-  ggplot(aes(`During play` - `Pre-play`)) +
+  mutate(Difference = `During play` - `Pre-play`) |> 
+  drop_na(Difference) |> 
+  ggplot(aes(Difference)) +
   geom_histogram(bins = 50, col = "white") +
   geom_vline(xintercept = 0, linewidth = .33, col = "dodgerblue") +
   scale_y_continuous(
@@ -391,22 +257,26 @@ p_mood_difference_sessions <- p_mood_prepost_sessions$data |>
     expand = expansion(c(0.001, 0.1))
   ) +
   scale_x_continuous(
-    "Difference",
     expand = expansion(c(0.001))
   ) +
-  coord_cartesian(xlim = c(-0.4, 0.6))
+  coord_cartesian(xlim = c(-.4, .6))
 
 # Plot: Difference histogram (players)
-p_mood_difference_players <- p_mood_difference_sessions %+% 
-  summarise(
-    p_mood_difference_sessions$data,
-    across(`Pre-play`:`During play`, ~mean(.x, na.rm = TRUE)),
-    .by = pid
-  ) +
+p_mood_difference_players <- p_mood_prepost_players$data |> 
+  pivot_wider(names_from = post, values_from = mood) |> 
+  mutate(Difference = `During play` - `Pre-play`) |> 
+  drop_na(Difference) |> 
+  ggplot(aes(Difference)) +
+  geom_histogram(bins = 50, col = "white") +
+  geom_vline(xintercept = 0, linewidth = .33, col = "dodgerblue") +
   scale_y_continuous(
     "Players",
     expand = expansion(c(0.001, 0.1))
-  )
+  ) +
+  scale_x_continuous(
+    expand = expansion(c(0.001))
+  ) +
+  coord_cartesian(xlim = c(-.4, .6))
 
 p_mood_difference <- (
   (p_mood_difference_sessions + 
@@ -422,14 +292,10 @@ p_mood_difference <- (
 p_mood_biscatter_sessions <- p_mood_difference_sessions$data |> 
   ggplot(aes(`Pre-play`, `During play`)) +
   scale_x_continuous(
-    expand = expansion(0.01),
-    breaks = axislabels,
-    labels = axislabels
+    expand = expansion(0.01)
   ) +
   scale_y_continuous(
-    expand = expansion(0.01),
-    breaks = axislabels,
-    labels = axislabels
+    expand = expansion(0.01)
   ) +
   geom_point(
     alpha = .25, size = 1, shape = 1
@@ -437,8 +303,19 @@ p_mood_biscatter_sessions <- p_mood_difference_sessions$data |>
   geom_abline(linewidth = .33, col = "dodgerblue") +
   theme(aspect.ratio = 1)
 
-p_mood_biscatter_players <- p_mood_biscatter_sessions %+% 
-  p_mood_difference_players$data
+p_mood_biscatter_players <- p_mood_difference_players$data |> 
+  ggplot(aes(`Pre-play`, `During play`)) +
+  scale_x_continuous(
+    expand = expansion(0.01)
+  ) +
+  scale_y_continuous(
+    expand = expansion(0.01)
+  ) +
+  geom_point(
+    alpha = .25, size = 1, shape = 1
+  ) +
+  geom_abline(linewidth = .33, col = "dodgerblue") +
+  theme(aspect.ratio = 1)
   
 
 p_mood_biscatter <- (p_mood_biscatter_sessions / p_mood_biscatter_players)
@@ -450,11 +327,72 @@ p_mood_example /
       p_mood_difference | 
       p_mood_biscatter_players
   ) +
-  plot_layout(heights = c(4.5, 5.5)) +
+  plot_layout(heights = c(5, 5)) +
   plot_annotation(tag_levels = "A")
 ```
 
-We then turned to our primary research question: To what extent does player mood in PWS change from pre-play to during play? First, we visualized the relevant data in @fig-data: Panel A shows mood responses from three example participants' first five sessions of play. @fig-data B then shows histograms of those data to facilitate visual comparison of the raw data. We then calculated sessions' and participants' mean moods at the beginning and during each session (@fig-data C, D, and G), and their differences (E and F). Visual inspection suggested greater mood during play compared to the pre-play measures at both the level of sessions and players.
+## Model
+
+Our research question concerned the difference between players’ mood at the beginning of each session (pre-play) and during the subsequent play session (during play). It is important to understand that this contrast does not embed a causal hypothesis: Players could begin (and end) their play ses-sions for whatever reason, and these reasons are likely to confound the pre -- during contrast. For example, a player might come home after a stressful day at work, and sit down to play some PWS. During this play session, their mood would improve because they are at home vs. stressful work environment, and would show as a greater during play mood compared to pre-play mood: Reasons behind starting a play session are likely to contribute to the pre -- during contrast and we are unable to disentangle those from any changes actually caused by play.
+
+We estimated this contrast within a censored three-level hierarchical regression model. We specified a censored gaussian model because mood was measured with a VAS. Ignoring the censoring inherent in VAS responses can confound changes in the mean with changes in the spread of mood, and leave the contrast susceptible to ceiling or floor effects. We then modelled mean mood on an intercept and contrast coded time (pre-play: -0.5; during play: 0.5), and allowed both parameters to vary randomly across players. In addition, we modelled random intercepts over player-sessions because over time, mood is susceptible to myriad other influences. Although equal variances across people in such naturalistic observation seem unlikely, we fixed this parameter to a constant for model identifiability and convergence.
+
+More formally, we modelled each mood response *i* in 1 to `r number2(nrow(dat))` from participant *j* in 1 to `r number2(length(unique(dat$pid)))` and participant-session *k* in 1 to `r number2(length(unique(dat$ps)))` with a normal distribution censored at the VAS limits [0, 1]. We then modelled the distribution's mean ($\eta$) on a population-level intercept ($\beta_0$) and contrast-coded measurement timepoint ($\beta_1$), their random player ($\alpha$) and player-session ($\gamma$) deviations,
+
+$$
+\begin{align*}
+\text{mood}_{ijk} &\sim \text{CensNormal}(\eta_{ijk}, \sigma^2, 0, 1), \\
+\eta_{ijk} &= \alpha_0 + \beta_{0j} + \gamma_{0k} +
+  (\alpha_1 + \beta_{1j})\text{post}_{ijk}, \\
+\begin{bmatrix} \alpha_0 \\ \alpha_1 \end{bmatrix} &\sim 
+  \text{MVN}\left(\begin{bmatrix} 0 \\ 0 \end{bmatrix}, 
+  \begin{bmatrix} 
+    \tau_{\alpha_0} &\rho_{{\alpha_0}{\alpha_1}} \\ 
+    \rho_{{\alpha_0}{\alpha_1}} &\tau_{\alpha_1}
+  \end{bmatrix}\right), \\
+\begin{bmatrix} \gamma_0 \end{bmatrix} &\sim 
+  \text{Normal}\left(\begin{bmatrix} 0 \end{bmatrix}, 
+  \begin{bmatrix} 
+    \tau_{\gamma_0}
+  \end{bmatrix}\right).
+\end{align*}
+$$
+
+```{r}
+#| label: model-estimate-brms
+#| cache: false
+
+model <- bf(
+  mood | cens(cl) ~ 
+    1 + post + 
+    (1 + post | pid) + 
+    (1 | ps)
+) +
+  gaussian()
+
+fit <- brm(
+  model,
+  data = dat,
+  silent = 0,
+  iter = N_ITER,
+  control = list(adapt_delta = .95),
+  file = "models/brm-prepost-pid-ps-censored"
+)
+```
+
+```{r}
+#| label: fig-convergence
+#| fig-cap: Convergence diagnostic plot showing bivariate scatterplots of the model's population-level parameters' posterior draws.
+
+pairs(
+  fit, 
+  variable = c("b_", "sd_", "cor_"), 
+  regex = TRUE,
+  off_diag_args = list(size = .33, shape = 1)
+  )
+```
+
+## Population level effects
 
 ```{r}
 #| label: tbl-avg
@@ -482,33 +420,29 @@ h_avg_tab |>
   knitr::kable()
 ```
 
-The model results confirmed the visual impressions described above: @tbl-avg indicates, with great certainty, that mood increased by about [`r paste0(map(h_avg_$hypothesis[3,4:5], ~number(.x, .001)), collapse = ", ")`] units (@fig-coef, "Raw"). 
-
 ```{r}
 #| label: scaled-coefficients
 
 posterior_pop <- as_draws_df(
   fit, 
-  c("sd_pid__Intercept", "sd_pid__post1", "sigma", "b_post1")
+  c("sd_", "sigma", "b_post1"),
+  regex = TRUE
 ) |> 
   mutate(
-    total_residual = sd_pid__Intercept + sd_pid__post1 + sigma,
-    b_post1_scaled = b_post1 / total_residual
+    tr = sd_pid__Intercept + sd_pid__post1 + sd_ps__Intercept + sigma,
+    b_post1_z = b_post1 / tr,
+    prop_pos = pnorm(0, b_post1, sd_pid__post1, lower.tail = FALSE)
   ) |> 
   tibble() |> 
   select(-starts_with("."))
-
-posterior_pop_sum <- posterior_pop |> 
-  summarise_draws(
-    mean = ~number(mean(.), .001), 
-    ~number2(quantile2(., probs = c(.025, .975)), .001)
+posterior_pop |> 
+  summarize_draws(
+    mean, ~quantile2(., probs = c(0.025, 0.975))
   ) |> 
-  mutate(
-    x = str_glue("{mean} [{q2.5}, {q97.5}]")
-  )
+  knitr::kable(digits = 3)
 ```
 
-To further interpret the magnitude of the difference in moods between pre- and during play, we compared the contrast to the natural variations in mood as estimated by the model (standard deviation of the between-person intercept heterogeneity ($\tau_{\alpha_0}$ = `r posterior_pop_sum$x[1]`), between-person pre-during difference heterogeneity ($\tau_{\alpha_1}$ = `r posterior_pop_sum$x[2]`) and to the residual standard deviation ($\sigma$ = `r posterior_pop_sum$x[3]`). The standardized (with the total residual variation from the three above components) pre-play -- during play contrast was `r posterior_pop_sum$x[6]` (@fig-coef, "Scaled"), a not ignorable difference.
+## Heterogeneity
 
 ```{r}
 #| label: heterogeneity-calculate
@@ -516,7 +450,7 @@ To further interpret the magnitude of the difference in moods between pre- and d
 posterior_pid <- coef(fit, summary = FALSE)$pid[,,"post1"]
 posterior_pid_scaled <- apply(
   posterior_pid, 2, 
-  function(x) x / posterior_pop$total_residual
+  function(x) x / posterior_pop$tr
 ) |> 
   apply(2, function(x) mean_qi(x)) |> 
   bind_rows(.id = "pid")
@@ -526,72 +460,59 @@ posterior_pid <- posterior_pid |>
 
 posterior_pid_sum <- bind_rows(
   "b_post1" = posterior_pid,
-  "b_post1_scaled" = posterior_pid_scaled,
+  "b_post1_z" = posterior_pid_scaled,
   .id = "name"
-)
-
-x <- posterior_pop |> 
-  mutate(
-    prop_pos = pnorm(0, b_post1, sd_pid__post1, lower.tail = FALSE)
-  ) |> 
-  mean_qi(prop_pos) |> 
-  mutate(x = str_glue("{percent(prop_pos, .1)} [{number(.lower*100, .1)}, {number(.upper*100, .1)}]")) |> 
-  pull(x)
+) |> tibble()
 ```
-
-We then turned our attention to between-person differences in the difference in during and pre-play mood. With a sample of `r s$n_sub`, it is not surprising that the population-level contrast is credibly different from zero. We therefore asked the subsequent question: What proportion of the population from which the sample was drawn would we expect there to be an elevation in mood during play? The boxplots in @fig-coef show the distribution of player-specific contrasts estimated by the model, which indicated that `r x` of players in the population experience a positive shift in mood during play, compared to their moods during login.
 
 ```{r}
 #| label: fig-coef
 #| include: true
-#| fig.width: 3
-#| fig.height: 1.4
-#| fig.cap: "Difference in mood during play compared to mood at session start. Points and intervals indicate posterior means and 95%CIs of the population level difference; boxplots summarize the player-level estimates. Raw estimates are on the VAS scale, whereas Scaled estimates indicate contrasts divided by the total residual deviance of the model."
+#| fig.width: 4
+#| fig.height: 2.6
+#| fig.cap: Histograms of person-specific contrasts on the raw scaled and standardized scale.
 
-posterior_pop |> 
-  select(starts_with("b_")) |> 
-  pivot_longer(everything()) |>
-  group_by(name) |> 
-  mean_qi(value, .width = 0.95) |> 
-  ggplot(aes(value, name)) +
+posterior_pid_sum |> 
+  ggplot(aes(y, name)) +
+  stat_slab(
+    density = "histogram", 
+    breaks = 100, 
+    slab_color = "white", 
+    outline_bars = TRUE, 
+    linewidth = .25
+  ) +
+  geom_vline(xintercept = 0, linewidth = .33, col = "dodgerblue") +
   scale_x_continuous(
     "During play - pre-play contrast",
     breaks = extended_breaks(7)
   ) +
   scale_y_discrete(
-    breaks = c("b_post1", "b_post1_scaled"),
-    labels = c("Raw", "Scaled")
-  ) +
-  coord_cartesian(xlim = c(-0.25, 0.65)) +
-  geom_vline(xintercept = 0, linewidth = .33, col = "dodgerblue") +
-  geom_boxploth(
-    data = posterior_pid_sum,
-    aes(x = y, group = name), 
-    outlier.shape = NA,
-    notch = TRUE,
-    size = 0.25,
-    width = .2
-  ) +
-  geom_pointrangeh(
-    aes(xmin = .lower, xmax = .upper),
-    fatten = 2.5
+    breaks = c("b_post1", "b_post1_z"),
+    labels = c("Raw", "Scaled"),
+    expand = expansion(c(0.05, 0.01))
   ) +
   theme(
     axis.title.y = element_blank()
-  )
+  ) +
+  coord_cartesian(ylim = c(1, 2.5), xlim = c(-0.2, 0.4))
 ```
 
-## Abstract
-
-```{glue}
-#| results: asis
-#| echo: false
-
-Although hundreds of millions of individuals play video games, a medium sometimes considered psychologically damaging, no firm evidence exists on how games affect players’ moods---if at all. One reason that current evidence remains mixed is that games are likely to affect players differently depending on the time-scale of the investigation: Do games affect players’ well-being over long periods of time, or are the effects fleeting and only evidenced in near real-time to play? In this case study of a single game (PowerWash Simulator), we examined {s$n_sub} players’ moods from {s$n_obs} reports provided in-game. We compared players’ moods before play sessions (at login) to their moods during play. We find that on average, players report {h_avg_tab[3, "Estimate"]} {h_avg_tab[3, "CI"]} scale percentages greater mood during play than at the beginning of a play session, and that {x} of individuals in the population are predicted to have such positive changes in mood. We do not know whether the current results indicate a causal effect, since the hypothetical treatment of “choosing to play” occurs prior to our first measure, nor do we know whether and how our results would generalize to other games and player populations. Nevertheless, current results offer a promising glimpse of the potential of games in positively contributing to player mood, and of the potential of in-game telemetry and mood measure to study games’ effects on people at a short time scale where effects are likely to exist.
+```{r}
+p_mood_difference_players$data |> 
+  left_join(posterior_pid) |> 
+  left_join(count(dat, pid)) |> 
+  ggplot(aes(Difference, y, alpha = n, size = n)) +
+  scale_x_continuous(
+    "Difference"
+  ) +
+  scale_y_continuous(
+    "Modelled difference"
+  ) +
+  coord_cartesian(
+    xlim = c(-1, 1), ylim = c(-.5, .5)
+  ) +
+  geom_point() +
+  geom_abline() +
+  theme(aspect.ratio = 1)
 ```
 
-
-## Bibliography
-
-::: {#refs}
-:::
