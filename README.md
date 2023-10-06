@@ -1,18 +1,14 @@
-## A case study of powerwash simulator
-
-Matti Vuorre, Nick Ballou, Andy Przybylski
-
-This repository contains the data and code described in our manuscript "Title To Be Determined" (Vuorre, Ballou, & Przybylski).
+[This repository](https://github.com/digital-wellbeing/pws-data) contains the data and code described in our manuscript {{< meta book.description >}}, and is readable at <https://digital-wellbeing.github.io/pws-prepost/>.
 
 ## Data 
 
-The code here pulls data from the PowerWash Simulator dataset at <https://osf.io/wpeh6/> (<https://psyarxiv.com/kyn7g>). See `Makefile`.
+The data is documented and archived at <https://osf.io/wpeh6/> (<https://psyarxiv.com/kyn7g>).
 
 ## Reproduce / contribute
 
-The analysis code is written in R. `supplement.qmd` downloads and cleans the data, with other supplementary analyses. Main analyses are in `ms.qmd`. To run the files in the correct order, we use [GNU make](https://stat545.com/make-windows.html). (See `Makefile`.)
+The analysis code is written in R. We've organized it as a set of [Quarto](https://quarto.org/) notebooks. To run all the notebooks and produce the analysis documentation, render the Quarto project.
 
-To contribute, open an issue or push changes on a new branch at <https://github.com/digital-wellbeing/pws-prepost> and send a pull request to the dev branch. Matti will review the issue / PR.
+To contribute, open an issue and/or send a pull request to the dev branch at <https://github.com/digital-wellbeing/pws-prepost>.
 
 ### Build using Docker
 You can also build the project using Docker.
@@ -48,6 +44,7 @@ docker run --rm \
     pws-pre-post 
 ```
 Environment variables:
+
 - `N_CORES` controls the number of CPU cores used by Stan. Default 1 if unset.
 - `N_THREADS` controls number of threads to use in within-chain parallelization. Default 2 if unset.
 - `N_ITER` sets the total number of iterations per chain. Default 2000 if unset.

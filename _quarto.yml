@@ -1,21 +1,18 @@
-
 project:
   type: book
-  output-dir: _docs
-  render:
-    - index.qmd
-    - wrangle.qmd
-    # - analyze.qmd
-    # - continuous-time.qmd
+  output-dir: docs
 
 book:
   title: "PWS: Mood"
-  description: Computational notebook supporting our manuscript
+  description: |
+    'Computational notebook supporting
+    "Affective Uplift During Video Game Play:
+    A Naturalistic Case Study" (Vuorre, Ballou, et al., 2023)'
   chapters:
     - index.qmd
     - wrangle.qmd
-    # - analyze.qmd
-    # - continuous-time.qmd
+    - analyze.qmd
+    - continuous-time.qmd
 
 format:
   html:
@@ -42,12 +39,15 @@ author:
       - ref: c
   - name: Nick Ballou
     orcid: 0000-0003-4126-0696
+    url: https://www.oii.ox.ac.uk/people/profiles/nick-ballou/
     affiliation:
       - ref: b
   - name: Andrew K. Przybylski
     orcid: 0000-0001-5547-2185
+    url: https://www.oii.ox.ac.uk/people/profiles/andrew-przybylski/
     affiliation:
       - ref: b
+
 affiliations:
   - id: a
     name: Tilburg University
@@ -56,5 +56,8 @@ affiliations:
   - id: c
     name: Karolinska Institutet
 
+site-url: "https://github.com/digital-wellbeing/pws-prepost"
+citation: true
+license: "CC BY"
 date: 2023-09-19
 bibliography: bibliography.bib
