@@ -7,7 +7,15 @@ data-raw/
 data/
 *.pdf
 *.html
+*.docx
+*.log
+*.tex
 *_cache/
 *_files/
+models/
+figures/
 
 /.quarto/
+.Renviron
+dev/
+docs/

@@ -1,0 +1,1118 @@
+# Continuous time {#sec-continuous-time}
+
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE,
+  include = TRUE,
+  echo = TRUE
+)
+```
+
+In the main analysis we focused on contrasting the mood at the beginning of a session with the average mood during session. In this document we focus on two additional research questions:
+
+1. How does mood change during a session?
+2. Is change during a session related to the participants' pretest mood? 
+
+To answer these questions time is modeled as a continuous variable.
+
+## Setup
+```{r}
+#| label: packages
+#| cache: false
+
+library(scales)
+library(cmdstanr)
+library(posterior)
+library(brms)
+library(patchwork)
+library(tidyverse)
+library(splines)
+library(emmeans)
+library(lme4)
+library(broom.mixed)
+library(knitr)
+library(rstanarm)
+source("R/functions.R")
+source("R/common.R")
+```
+
+## Data
+Load the data.
+```{r}
+#| label: load-data
+
+dat <- read_rds("data/data.rds")
+
+if (!is.na(N_SUBSET)) {
+  pid_subset <- sample(unique(dat$pid), N_SUBSET)
+  dat <- filter(dat, pid %in% pid_subset) |> 
+    droplevels()
+}
+```
+
+
+## Main model
+Define a spline that uses 4 degrees of freedom. We base this on the quantiles of `hours`.
+
+```{r}
+#| label: spline-percentiles
+quantile(dat$hours)
+```
+
+Not all participants contributed an equal number of observations. We'll calculate the max session length per participant.
+
+```{r}
+#| label: tbl-session-max-prop
+#| tbl-cap: Proportion of participants that had at least one session last longer than gt_* hours
+dat |>
+  summarise(
+    max = max(hours),
+    .by = c(pid)
+  ) |>
+  summarise(
+    gt_0.18 = mean(max > 0.18),
+    gt_0.51 = mean(max > 0.51),
+    gt_1.3 = mean(max > 1.3),
+    gt_2 = mean(max > 2),
+  ) |>
+  kable(digits = 2)
+```
+
+@tbl-session-max-prop shows that 85% of the participant have at least one session that lasted for over 0.51 hours, and 64% for over 1.3 hours. So we will base our knot placement on these quantiles.
+
+```{r}
+#| label: define-spline
+#| code-fold: show
+ns4 <- function(x) {
+  ns(
+    x,
+    knots = c(0.18, 0.5, 1.3),
+    Boundary.knots = c(0, 3)
+  )
+}
+```
+
+The main model is a LMM, we include random effects for each piece of the spline and a random intercept at the session level.
+
+```{r}
+#| label: lmm-ns4
+#| code-fold: show
+fit <- fit_cached(
+  "models/lmm-ns4.Rds",
+  lmer(
+    mood ~ ns4(hours) + (1 | ps) + (1 + ns4(hours) | pid),
+    data = dat
+  )
+)
+```
+
+This model included `r number2(ngrps(fit)["pid"])` participants, with a total of `r number2(ngrps(fit)["ps"])` sessions and `r number2(nobs(fit))` observations.
+
+The spline is plotted in @fig-plot-curve, and we can see that there's a small but sharp increase early during a session.
+
+```{r}
+#| label: fig-plot-curve
+#| fig-cap: Estimated mood during a play session
+#| fig-height: 3
+#| fig-width: 8
+
+hours <- seq(0, 3, length.out = 100)
+emm1 <- emmeans(
+  fit,
+  ~hours,
+  at = list(hours = hours),
+  lmer.df = "asymptotic"
+)
+p_curve <- as.data.frame(emm1) |>
+  ggplot(aes(hours, emmean)) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL
+    ),
+    alpha = 0.25
+  ) +
+  labs(
+    x = "Session duration (hours)",
+    y = "Mood (0 - 1)"
+  ) +
+  scale_x_hours
+p_curve
+```
+
+@fig-plot-change shows the same spline, but as a contrast where hour = 0 is the reference value.
+
+```{r}
+#| label: fig-plot-change
+#| fig-cap: Estimated difference in mood over a session compared to the start of a session
+#| fig-height: 3
+#| fig-width: 8
+
+d_change <- emmeans::contrast(
+  emm1,
+  method = "trt.vs.ctrl",
+  ref = "hours0"
+) |>
+  confint() |>
+  as.data.frame() |>
+  mutate(
+    hours = hours[-1]
+  )
+
+p_change <- d_change |>
+  ggplot(aes(hours, estimate)) +
+  scale_y_continuous(
+    expand = expansion(c(0.1, 0.1))
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL
+    ),
+    alpha = 0.25
+  ) +
+  labs(x = "Session duration (hours)") +
+  scale_x_hours
+p_change
+```
+
+@tbl-change-contrast shows the estimated change from baseline after 15min, 30 min, 1 hour, 2 hours, and 3 hours.
+```{r}
+#| label: tbl-change-contrast
+#| tbl-cap: Estimated change from baseline
+emmeans(
+  fit,
+  ~hours,
+  at = list(hours = c(0, 15 / 60, 0.5, 1, 2, 3)),
+  lmer.df = "asymptotic"
+) |>
+  emmeans::contrast(
+    method = "trt.vs.ctrl",
+    ref = "hours0",
+  ) |>
+  confint() |>
+  kable(
+    digits = 3
+  )
+```
+
+### Relationship between change and mood at the start of a session
+We are also interested in the relationship between the initial mood and change over time. As the intercepts are correlated with the random slopes we can plot the implied splines for someone with mood levels 0, 1, and 2 SD below the average at the start of a session. The logic here is simply: if cor(intercept, slope) = 0.5, then someone with an intercept equal to -1SD is expected to have a slope equal to -0.5 * sd(slope). This is shown in @fig-intercept-sds, which tells us that someone with a lower mood at the beginning of a session is expected to have their mood increase more during a session. 
+
+Interpret this with caution.
+
+```{r}
+#| label: fig-intercept-sds
+#| fig-cap: Estimated curves for participants with an intercept equal to 0, -1SD, and -2SD.
+#| fig-height: 3
+#| fig-width: 8
+
+pre_labels <- c("-2 SD", "-1 SD", "Mean", "1 SD")
+pre_sds <- c(-2, -1, 0, 1)
+colors <- c(
+  "1 SD" = "#4daf4a",
+  "-1 SD" = "#e41a1c",
+  "-2 SD" = "#377eb8",
+  "Mean" = "#000000"
+)
+color_scale <- list(
+  scale_color_manual(
+    "Pre",
+    values = colors
+  ),
+    scale_fill_manual(
+    "Pre",
+    values = colors
+  )
+)
+
+p_int_sd <- map(
+  pre_sds,
+  \(sd) get_trend(fit, dat, sd = sd)
+) |>
+  bind_rows() |>
+  mutate(
+    intercept = factor(
+      rep(
+        pre_labels,
+        each = 100
+      ),
+      levels = pre_labels
+    )
+  ) |>
+  ggplot(
+    aes(
+      x,
+      y,
+      color = intercept,
+      group = intercept
+    )
+  ) +
+  geom_line() +
+  labs(
+    x = "Session duration (hours)",
+    y = "Mood (0 - 100)"
+  ) +
+  color_scale +
+  scale_x_hours
+
+p_int_sd
+```
+
+The curves in @fig-intercept-sds are easier to compare if we plot them without an intercept, as can be seen in @fig-no-intercept.
+
+```{r}
+#| label: fig-no-intercept
+#| fig-cap: Estimated change curves for participants with an intercept equal to 0, -1SD, and -2SD.
+#| fig-height: 3
+#| fig-width: 8
+p_int_sd_change <- map(
+  pre_sds,
+  \(sd) get_trend(
+    fit,
+    dat,
+    sd = sd,
+    intercept = FALSE
+  )
+) |>
+  bind_rows() |>
+  mutate(
+    intercept = factor(
+      rep(
+        pre_labels,
+        each = 100
+      ),
+      levels = pre_labels
+    )
+  ) |>
+  ggplot(
+    aes(
+      x,
+      y,
+      color = intercept,
+      group = intercept
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    data = d_change,
+    aes(
+      x = hours,
+      y = NULL,
+      ymin = asymp.LCL,
+      ymax = asymp.UCL,
+      group = "0",
+      color = NULL
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  labs(
+    x = "Session duration (hours)",
+    y = "Change in Mood (0 - 100)"
+  ) +
+  color_scale +
+  scale_x_hours
+p_int_sd_change
+```
+
+### Pretest x time continuous interaction
+Modeling the relationship between baseline wellbeing and change using random effects is limited. Here we'll fit a separate interaction model to the subset of participants that began their session by answering a mood question. This allows us to explicitly model the interaction between the pretest values and the within-session change, without having to infer this from the multivariate normal distribution of the random effects. This also allows us to model this as a non-linear relationship. 
+
+```{r}
+#| label: lmer-pre-interaction
+#| code-fold: show
+dat_pre <- dat |>
+  filter(
+    # Session has a wellbeing measure at time = 0
+    hours[1] == 0,
+    .by = c(pid, session)
+  ) |>
+  mutate(
+    pre = mood[1],
+    .by = c(pid, session)
+  ) |>
+  filter(
+    hours > 0
+  ) |> 
+  droplevels()
+
+fit3 <- fit_cached(
+  "models/lmm-pre-interaction.Rds",
+  lmer(
+    mood ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps),
+    data = dat_pre
+  )
+)
+```
+
+This model included `r number2(ngrps(fit3)["pid"])` participants, with a total of `r number2(ngrps(fit3)["ps"])` sessions and `r number2(nobs(fit3))` observations.
+
+Next we'll calculate the pre values we are interested in plotting.
+
+```{r}
+#| label: tbl-pre-sum
+#| tbl-cap: Average mood levels the start of a session
+pre_sum <- dat_pre |>
+  summarise(
+    pre_mean = median(pre),
+    .by = pid
+  ) |>
+  summarise(
+    mean = mean(pre_mean),
+    sd = sd(pre_mean)
+  )
+kable(pre_sum, digits = 2)
+```
+
+However, baseline mood is not normally distributed, so we'll use percentiles instead. 
+```{r}
+#| label: tbl-pre-sd-values
+#| tbl-cap: Distribution of average mood levels at the start of a session
+#pre_values <- pre_sum$mean + pre_sds * pre_sum$sd
+
+pre <- dat_pre |> 
+  summarise(pre = pre[1], .by = ps) |> 
+  pull(pre)
+pre_values <- quantile(pre, c(0.05, .25, 0.5, 0.75))
+pre_labels_x <- c("5th", "25th", "Median", "75th")
+colors <- c(
+  "5th" = "#4daf4a",
+  "25th" = "#e41a1c",
+  "75th" = "#377eb8",
+  "Median" = "#000000"
+)
+color_scale_x <- list(
+  scale_color_manual(
+    "Pre",
+    values = colors
+  ),
+    scale_fill_manual(
+    "Pre",
+    values = colors
+  )
+)
+data.frame(
+  pre = pre_values,
+  label = pre_labels_x
+  ) |> 
+  kable(digits = 2)
+```
+
+Plot the interaction at different pretest values. As shown in @fig-lmm-pre-interaction, this interaction model shows a pattern similar to @fig-intercept-sds where those who report lower mood at the beginning of a session also improve more. 
+```{r}
+#| label: fig-lmm-pre-interaction
+#| fig-cap: Interaction between pretest mood and change, shown at -2 SD, -1, SD, the mean, and +1 SD.
+#| fig-height: 3
+#| fig-width: 8
+emm <- emmeans(
+  fit3,
+  ~ hours + pre,
+  at = list(
+    hours = seq(0, 3, length.out = 100),
+    pre = pre_values
+  ),
+  lmer.df = "asymptotic"
+)
+p_pre_x <- as.data.frame(emm) |>
+  mutate(
+    pre = factor(
+      pre,
+      labels = pre_labels_x
+      )
+  ) |>
+  ggplot(
+    aes(
+      hours,
+      emmean,
+      group = pre,
+      color = pre
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL,
+      fill = pre,
+      color = NULL
+    ),
+    alpha = 0.25,
+    show.legend = FALSE
+  ) +
+  color_scale_x +
+  scale_x_hours
+
+p_pre_x
+```
+
+Let's also calculate the within-session change for the interaction model.
+```{r}
+#| label: fig-lmm-pre-interaction-change
+#| fig-cap: Within-session change from the interaction model
+#| fig-height: 2.5
+#| fig-width: 8
+
+d_x_change <- data.frame(
+  pre = pre_values,
+  label = pre_labels_x
+) |>
+  pmap(\(pre, label) get_change_by_pre(
+    pre,
+    label,
+    fit3,
+    hours = seq(0, 3, length.out = 100)
+  )) |>
+  bind_rows()
+
+p_pre_x_change <- d_x_change |>
+  mutate(
+    label = factor(
+      label,
+      levels = pre_labels_x
+    )
+  ) |>
+  ggplot(
+    aes(
+      hours,
+      estimate,
+      group = label,
+      color = label,
+      fill = label
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL,
+      color = NULL
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dotted"
+  ) +
+  labs(x = "Session duration (hours)") +
+  color_scale_x +
+  scale_x_hours +
+  facet_wrap(~label, ncol = 4) 
+p_pre_x_change
+```
+
+### Manuscript figures
+Create figures for the manuscript.
+```{r}
+#| label: fig-ms-interaction
+#| fig-height: 3.5
+#| fig-width: 7
+#| fig-cap: Figure included in manuscript
+
+scale_x_hours2 <- list(
+  scale_x_continuous(
+  breaks = c(0, 15/60, 0.5, 45/60, 1, 2, 3), 
+  labels = c(0, "", "30m", "", "1h", "2h", "3h")
+  )
+)
+p_tmp <- (
+  (
+    p_pre_x + 
+      facet_wrap(~pre, ncol = 4) +
+      scale_x_hours2 +
+      labs(y = "Mood") +
+      theme(axis.title.x = element_blank())
+  ) / 
+    (
+      p_pre_x_change +
+        scale_x_hours2 +
+        labs(y = "Change", x = "Duration") +
+        theme()
+    ) 
+) +
+  plot_annotation(tag_levels = "A") &
+  theme(legend.position = "none") 
+p_tmp
+```
+
+And this figure.
+
+```{r}
+#| label: fig-ms-no-interaction
+#| fig-height: 3
+#| fig-width: 6
+#| fig-cap: Figure shown in manuscript
+
+p_tmp <- (
+  p_curve + labs(x = NULL, y = "Mood")
+  ) / (
+  p_change + labs(x = "Duration", y = "Change")
+  ) + plot_annotation(tag_levels = "A") 
+p_tmp
+```
+
+And a table.
+```{r}
+#| label: tbl-pre-interaction-change
+#| tbl-cap: Estimated within-session change from the interaction model
+pre_sds <- c(1, 0, -1, -2)
+tbl_x_change <- data.frame(
+  pre = round(pre_values),
+  label = pre_labels_x
+) |>
+  pmap(\(pre, label) get_change_by_pre(
+    pre, 
+    label, 
+    fit3, 
+    hours = c(0, 15/60, 0.5, 1, 2))
+    ) |>
+  bind_rows() |> 
+  select(
+    label, 
+    pre, 
+    hours,
+    estimate, 
+    CI_lwr = asymp.LCL, 
+    CI_upr = asymp.UCL
+    )
+tbl_x_change |> 
+  kable(digits = 2)
+```
+
+## Sensitivity checks
+### Censoring
+
+```{r}
+#| label: n-pids-sample
+#| echo: false
+n_pids_sample <- case_when(
+  is.na(N_SUBSET) ~ 1000,
+  !is.na(N_SUBSET) ~ min(N_SUBSET, 1000)
+)
+```
+
+The main discrete time model used a censored normal distribution. A similar model would take a long time to fit here, so we'll refit the continuous time model using a censored normal distribution on a random subset of `r n_pids_sample` participants.
+
+```{r}
+#| label: brms-cens
+#| results: hide
+set.seed(345345)
+tmp <- filter(
+  dat,
+  pid %in% sample(unique(pid), n_pids_sample)
+) |> 
+  mutate(mood = mood / 100)
+
+fit_b <- brm(
+  mood | cens(cl) ~ ns4(hours) + (1 + ns4(hours) | pid) + (1 | ps),
+  silent = 0,
+  data = tmp,
+  threads = 2,
+  control = list(adapt_delta = .95),
+  iter = 2000,
+  prior = prior("normal(0,1)", class = "b"),
+  file = "models/brms-ns4-cens"
+)
+```
+
+We also re-fit the LMM to the reduced data.
+
+```{r}
+#| label: lmm-reduced
+fit2 <- lmer(
+  mood ~ ns4(hours) + (1 | ps) + (1 + ns4(hours) | pid),
+  data = fit_b$data
+)
+```
+
+If we plot the fitted spline from both models, we see in @fig-cens-compare that the shape is almost identical but the censored model is shifted upwards. 
+
+```{r}
+#| label: fig-cens-compare
+#| fig-cap: Estimated trends with and without censoring.
+#| fig-height: 3
+#| fig-width: 8
+d_brms <-
+  emmeans(
+    fit_b,
+    ~hours,
+    at = list(hours = seq(0, 3, length.out = 100))
+  ) |>
+  as.data.frame() |>
+  mutate(model = "cens") |>
+  select(
+    hours,
+    emmean,
+    model,
+    lower = "lower.HPD",
+    upper = "upper.HPD"
+  )
+d_lmm <-
+  emmeans(
+    fit2,
+    ~hours,
+    at = list(hours = seq(0, 3, length.out = 100)),
+    lmer.df = "asymptotic"
+  ) |>
+  as.data.frame() |>
+  select(
+    hours,
+    emmean,
+    lower = "asymp.LCL",
+    upper = "asymp.UCL"
+  ) |>
+  mutate(
+    model = "lmm",
+    emmean = emmean,
+    upper = upper,
+    lower = lower
+  )
+rbind(d_brms, d_lmm) |>
+  ggplot(
+    aes(
+      hours,
+      emmean,
+      group = model,
+      color = model
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = lower,
+      ymax = upper,
+      fill = model,
+      color = NULL
+    ),
+    alpha = 0.25
+  ) +
+  labs(x = "Session duration (hours)")
+```
+
+Let's take a look at all model coefficients. @fig-model-cens-compare and @tbl-model-cens-compare show that ignoring censoring is perhaps not a huge problem.
+
+```{r}
+#| label: tidy-models
+fit2_tidy <- tidy(fit2) |>
+  mutate(
+    model = "lmm",
+    term = str_remove_all(term, "\\(|\\)")
+  ) |>
+  select(-statistic)
+fit_b_tidy <- tidy(fit_b)
+fit_b_tidy <- fit_b_tidy |>
+  mutate(
+    model = "cens",
+    term = str_remove_all(term, "\\(|\\)")
+  ) |>
+  select(
+    effect,
+    group,
+    term,
+    estimate,
+    std.error,
+    model
+  )
+```
+
+
+```{r}
+#| label: fig-model-cens-compare
+#| fig-cap: Model coefficients from an LMM with and without censoring
+rbind(fit2_tidy, fit_b_tidy) |>
+  ggplot(
+    aes(
+      y = term,
+      estimate,
+      color = model
+    )
+  ) +
+  geom_point() +
+  facet_wrap(
+    ~effect,
+    scale = "free",
+    ncol = 1
+  )
+```
+
+
+```{r}
+#| label: tbl-model-cens-compare
+#| tbl-cap: Model coefficients from an LMM with and without censoring
+left_join(
+  fit2_tidy,
+  fit_b_tidy,
+  by = join_by(term, group)
+) |>
+  mutate(
+    diff = estimate.x - estimate.y,
+    rel_diff = diff / estimate.y
+  ) |>
+  select(
+    group,
+    term,
+    est_lmm = estimate.x,
+    est_cens = estimate.y,
+    diff,
+    rel_diff
+  ) |>
+  kable(digits = 2)
+```
+
+We can also recreate @fig-intercept-sds using the Bayesian censored normal model and compare it to the LMM. As shown in @fig-bayes-int-sd, it's mostly the intercepts that are affected by the censoring.
+
+```{r}
+#| label: bayes-int-sd
+
+res <- map(
+  pre_sds,
+  \(sd) get_trend_bayes(sd = sd)
+) |>
+  bind_rows() |>
+  mutate(
+    intercept = factor(
+      sd,
+      levels = pre_sds,
+      labels = pre_labels
+    )
+  )
+
+# lmm for comparison
+res_lmm <- map(
+  pre_sds,
+  \(sd) get_trend(fit2, fit_b$data, sd = sd)
+) |>
+  bind_rows() |>
+  mutate(
+    intercept = factor(
+      rep(
+        pre_labels,
+        each = 100
+      ),
+      levels = pre_labels
+    )
+  ) |>
+  select(
+    estimate = y,
+    hours = x,
+    intercept
+  )
+
+```
+
+
+```{r}
+#| label: fig-bayes-int-sd
+#| fig-cap: Bayesian censored normal model vs LMM (dashed) fit to subset of data
+#| fig-height: 3
+#| fig-width: 8
+ggplot(
+  res,
+  aes(
+    hours, estimate,
+    group = intercept,
+    color = intercept
+  )
+) +
+  geom_line() +
+  geom_line(
+    data = res_lmm,
+    linetype = "dashed"
+  ) +
+  geom_ribbon(
+    aes(
+      x = hours,
+      y = NULL,
+      ymin = lwr,
+      ymax = upr,
+      color = NULL
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) + 
+  color_scale
+```
+
+Lastly, we'll also fit the interaction model using a censored normal distribution, with `r min(n_pids_sample, nlevels(dat_pre$pid))` participants.
+
+```{r}
+#| label: cens-pre-interaction
+#| results: hide
+set.seed(5454545)
+tmp_pre <- filter(
+    dat_pre,
+    pid %in% sample(
+        unique(pid),
+        # avoid taking sample larger than population 
+        min(
+            n_pids_sample,
+            nlevels(pid)
+        )
+    )
+)
+
+fit3_b <- brm(
+  mood ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps),
+  silent = 0,
+  data = tmp_pre,
+  threads = 2,
+  #control = list(adapt_delta = .95),
+  iter = 4000,
+  file = "models/brms-ns4-interaction-cens"
+)
+```
+
+Fit the LMM again to the smaller data.
+
+```{r}
+#| label: lmer-pre-interaction-small
+ fit3_small <- lmer(
+    mood ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps), 
+    data = fit3_b$data
+    )
+```
+
+We then compare the censored normal model with the LMM and recreate @fig-lmm-pre-interaction. As shown in @fig-cens-pre-interaction, there's almost no difference between the models.
+```{r}
+#| label: fig-cens-pre-interaction
+#| fig-cap: Censored normal vs LMM with a continuous by continuous interaction between within-session change and pretest mood.
+#| fig-height: 3
+#| fig-width: 8
+get_emm_pre <- function(fit) {
+  emmeans(
+    fit,
+    ~ hours + pre,
+    at = list(
+      hours = seq(0, 3, length.out = 100),
+      pre = c(
+        pre_sum$mean - 2 * pre_sum$sd,
+        pre_sum$mean - pre_sum$sd,
+        pre_sum$mean,
+        pre_sum$mean + pre_sum$sd
+      )
+    ),
+    lmer.df = "asymp"
+  )
+}
+pre_sum <- tmp_pre |>
+  summarise(
+    pre_mean = median(pre), .by = pid
+  ) |>
+  summarise(
+    mean = mean(pre_mean), sd = sd(pre_mean)
+  )
+emm_cens <- get_emm_pre(fit3_b) |>
+  as.data.frame() |>
+  mutate(
+    model = "cens"
+  ) |>
+  rename(
+    lwr = lower.HPD,
+    upr = upper.HPD
+  )
+emm_lmm <- get_emm_pre(fit3_small) |>
+  as.data.frame() |>
+  mutate(
+    model = "LMM"
+  ) |>
+  rename(
+    lwr = asymp.LCL,
+    upr = asymp.UCL
+  )
+
+p_cens_pre_interaction <- bind_rows(emm_cens, emm_lmm) |>
+  mutate(
+    pre = factor(
+      pre,
+      levels = sort(unique(pre)),
+      labels = c("-2 SD", "-1 SD", "Mean", "+1 SD")
+    )
+  ) |>
+  {
+    \(d)
+    ggplot(
+      data = d,
+      aes(
+        hours,
+        emmean,
+        group = interaction(pre, model),
+        color = pre,
+        linetype = model
+      )
+    ) +
+      geom_line() +
+      geom_ribbon(
+        data = filter(d, model == "cens"),
+        aes(
+          ymin = lwr,
+          ymax = upr,
+          fill = pre,
+          color = pre,
+        ),
+        color = NA,
+        alpha = 0.25,
+        show.legend = FALSE
+      ) +
+      geom_ribbon(
+        data = filter(d, model == "LMM"),
+        aes(
+          ymin = lwr,
+          ymax = upr,
+          fill = pre,
+          color = pre,
+        ),
+        fill = NA,
+        alpha = 0.15,
+        show.legend = FALSE
+      ) +
+      scale_color_brewer(palette = "Set1") +
+      scale_fill_brewer(palette = "Set1")
+  }()
+p_cens_pre_interaction
+```
+
+### Functional form of `hours` and `pre`
+Here we'll investigate the impact of the assumed functional form of `hours` and `pre`. As can be seen in @fig-lmm-pre-interaction-sens-pre, that impact of the assumed functional form of `pre` has very little impact on the results.
+
+```{r}
+#| label: fig-lmm-pre-interaction-sens-pre
+#| fig-cap: Estimated trends for various functional forms of `pre`
+tmp_models <- list()
+tmp_models[["linear"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-pre-linear.Rds",
+  lmer(
+    mood ~ ns4(hours) * pre + (1 + ns4(hours) | pid) + (1 | ps),
+    data = dat_pre
+  )
+)
+tmp_models[["ns2"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-pre-ns2.Rds",
+    lmer(
+      mood ~ ns4(hours) * ns(pre, 2) + (1 + ns4(hours) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models[["ns3"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-pre-ns3.Rds",
+    lmer(
+      mood ~ ns4(hours) * ns(pre, 3) + (1 + ns4(hours) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models[["ns4"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-pre-ns4.Rds",
+    lmer(
+      mood ~ ns4(hours) * ns(pre, 4) + (1 + ns4(hours) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models[["ns5"]] <- fit3
+
+get_trend_by_model <- function(fit, model_label) {
+  emm <- emmeans(
+    fit,
+    ~ hours + pre,
+    at = list(
+      hours = seq(0, 3, length.out = 100),
+      pre = pre_values
+    ),
+    lmer.df = "asymp"
+  )
+  as.data.frame(emm) |>
+    mutate(
+      pre = factor(
+        pre,
+        labels = pre_labels_x,
+      ),
+      model = model_label
+    )
+}
+tmp_p <- map2(
+  tmp_models,
+  names(tmp_models),
+  \(fit, lab) get_trend_by_model(fit, lab)
+) |>
+  bind_rows()
+p_pre_x_sens <- tmp_p |>
+  ggplot(
+    aes(
+      hours,
+      emmean,
+      group = interaction(model, pre),
+      color = model,
+      linetype = pre
+    )
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL,
+      fill = model,
+      color = NULL
+    ),
+    alpha = 0.10,
+    show.legend = FALSE
+  ) +
+  scale_color_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  scale_x_hours
+p_pre_x_sens
+```
+
+
+Next, we'll look at `hours`. In @fig-lmm-pre-interaction-sens-hours we see that the results aren't fundamentally different using splines with less degrees of freedom, or even a linear term. 
+
+```{r}
+#| label: fig-lmm-pre-interaction-sens-hours
+#| fig-cap: Estimated trends for various functional forms of `hours`  
+tmp_models2 <- list()
+tmp_models2[["linear"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-hours-linear.Rds",
+  lmer(
+    mood ~ hours * ns(pre, 5) + (1 + hours | pid) + (1 | ps),
+    data = dat_pre
+  )
+)
+tmp_models2[["ns2"]] <-
+  fit_cached(
+    "models/lmm-pre-interaction-sens-hours-ns2.Rds",
+    lmer(
+      mood ~ ns(hours, 2) * ns(pre, 5) + (1 + ns(hours, 2) | pid) + (1 | ps),
+      data = dat_pre,
+    )
+  )
+tmp_models2[["ns3"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-hours-n3.Rds",
+  lmer(
+    mood ~ ns(hours, 3) * ns(pre, 5) + (1 + ns(hours, 3) | pid) + (1 | ps),
+    data = dat_pre,
+  )
+)
+tmp_models2[["poly2"]] <- fit_cached(
+  "models/lmm-pre-interaction-sens-hours-poly2.Rds",
+  lmer(
+    mood ~ poly(hours, 2) * ns(pre, 5) + (1 + poly(hours, 2) | pid) + (1 | ps),
+    data = dat_pre,
+  )
+)
+tmp_models2[["ns4"]] <- fit3
+tmp_p <- map2(
+  tmp_models2,
+  names(tmp_models2),
+  \(fit, lab) get_trend_by_model(fit, lab)
+) |>
+  bind_rows()
+p_pre_x_sens %+% tmp_p 
+```
