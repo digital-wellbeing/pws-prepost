@@ -1,4 +1,4 @@
-[This repository](https://github.com/digital-wellbeing/pws-data) contains the data and code described in our manuscript {{< meta book.description >}}, and is readable at <https://digital-wellbeing.github.io/pws-prepost/>.
+[This repository](https://github.com/digital-wellbeing/pws-data) contains the data and code described in our manuscript, and is readable at <https://digital-wellbeing.github.io/pws-prepost/>.
 
 ## Data 
 
@@ -6,12 +6,16 @@ The data is documented and archived at <https://osf.io/wpeh6/> (<https://psyarxi
 
 ## Reproduce / contribute
 
-The analysis code is written in R. We've organized it as a set of [Quarto](https://quarto.org/) notebooks. To run all the notebooks and produce the analysis documentation, render the Quarto project.
+The analysis code is written in R. The source code of the manuscript (including all data wrangling and analysis) is in `ms.Rmd`. Reproduce the manuscript with
+
+```bash
+make
+```
 
 To contribute, open an issue and/or send a pull request to the dev branch at <https://github.com/digital-wellbeing/pws-prepost>.
 
 ### Build using Docker
-You can also build the project using Docker.
+You can also build the project using Docker. [WIP]
 
 ```bash
 docker build \

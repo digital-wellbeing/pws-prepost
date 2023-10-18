@@ -304,7 +304,7 @@ contrasts(dat$post) <- c(-0.5, 0.5)
 
 # Write data for any supplementary notebooks
 dir.create("data", FALSE)
-write_rds("data/data.rds")
+write_rds(dat, "data/data.rds")
 ```
 
 <!-- End code -->
