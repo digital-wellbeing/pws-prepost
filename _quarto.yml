@@ -1,26 +1,27 @@
 project:
-  type: book
+  type: manuscript
   output-dir: docs
-
-book:
-  title: "PWS: Mood"
-  description: |
-    'Computational notebook supporting
-    "Affective Uplift During Video Game Play:
-    A Naturalistic Case Study" (Vuorre, Ballou, et al., 2023)'
-  chapters:
+  render:
     - index.qmd
-    - wrangle.qmd
-    - analyze.qmd
-    - continuous-time.qmd
+
+manuscript:
+  article: index.qmd
+  notebooks:
+    - notebook: continuous-time.qmd
 
 format:
   html:
-    code-fold: true
     toc: true
-    toc-depth: 2
-    number-sections: true
-    html-math-method: katex
+    toc-location: right
+  pdf: default
+  docx: default
+
+execute:
+  freeze: true
+
+bibliography: references.bib
+keywords: "video games, well-being, mood, play behavior, telemetry"
+csl: apa.csl
 
 author:
   - name: Matti Vuorre
@@ -30,34 +31,30 @@ author:
     affiliation:
       - ref: a
       - ref: b
+  - name: Nick Ballou
+    orcid: 0000-0003-4126-0696
+    affiliation:
+      - ref: b
+  - name: Thomas Hakman
+    affiliation:
+      - ref: b
   - name: Kristoffer Magnusson
     orcid: 0000-0003-0713-0556
-    email: kristoffer.magnusson@ki.se
     url: https://rpsychologist.com
     affiliation:
       - ref: b
       - ref: c
-  - name: Nick Ballou
-    orcid: 0000-0003-4126-0696
-    url: https://www.oii.ox.ac.uk/people/profiles/nick-ballou/
-    affiliation:
-      - ref: b
   - name: Andrew K. Przybylski
     orcid: 0000-0001-5547-2185
-    url: https://www.oii.ox.ac.uk/people/profiles/andrew-przybylski/
     affiliation:
       - ref: b
 
 affiliations:
   - id: a
     name: Tilburg University
+    department: Tilburg School of Social and Behavioral Science
   - id: b
     name: University of Oxford
+    department: Oxford Internet Institute
   - id: c
     name: Karolinska Institutet
-
-site-url: "https://github.com/digital-wellbeing/pws-prepost"
-citation: true
-license: "CC BY"
-date: 2023-09-19
-bibliography: bibliography.bib

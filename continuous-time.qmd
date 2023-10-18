@@ -13,7 +13,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-In the main analysis in @sec-analyze we focused on contrasting the mood at the beginning of a session with the average mood during session. In this document we focus on two additional research questions:
+In the main analysis we focused on contrasting the mood at the beginning of a session with the average mood during session. In this document we focus on two additional research questions:
 
 1. How does mood change during a session?
 2. Is change during a session related to the participants' pretest mood? 
@@ -38,7 +38,6 @@ library(broom.mixed)
 library(knitr)
 library(rstanarm)
 source("R/functions.R")
-source("R/fit_cached.R")
 source("R/common.R")
 ```
 
@@ -214,7 +213,6 @@ Interpret this with caution.
 #| fig-cap: Estimated curves for participants with an intercept equal to 0, -1SD, and -2SD.
 #| fig-height: 3
 #| fig-width: 8
-source("R/get_trend.R")
 
 pre_labels <- c("-2 SD", "-1 SD", "Mean", "1 SD")
 pre_sds <- c(-2, -1, 0, 1)
@@ -453,12 +451,6 @@ p_pre_x <- as.data.frame(emm) |>
   scale_x_hours
 
 p_pre_x
-ggsave(
-  "figures/fig-interaction-model.png", 
-  p_pre_x, 
-  width = 7, 
-  height = 5
-)
 ```
 
 Let's also calculate the within-session change for the interaction model.
@@ -467,7 +459,7 @@ Let's also calculate the within-session change for the interaction model.
 #| fig-cap: Within-session change from the interaction model
 #| fig-height: 2.5
 #| fig-width: 8
-source("R/get_change_by_pre.R")
+
 d_x_change <- data.frame(
   pre = pre_values,
   label = pre_labels_x
@@ -551,18 +543,6 @@ p_tmp <- (
 p_tmp
 ```
 
-```{r}
-#| label: ggsave-fig-ms-interaction
-#| echo: false
-
-ggsave(
-  "figures/fig-pre-x-change.png", 
-  p_tmp, 
-  width = 7, 
-  height = 3.5
-  )
-```
-
 And this figure.
 
 ```{r}
@@ -577,18 +557,6 @@ p_tmp <- (
   p_change + labs(x = "Duration", y = "Change")
   ) + plot_annotation(tag_levels = "A") 
 p_tmp
-```
-
-```{r}
-#| label: ggsave-fig-ms-no-interaction
-#| echo: false
-
-ggsave(
-  "figures/fig-change.png", 
-  p_tmp, 
-  width = 6, 
-  height = 3
-  )
 ```
 
 And a table.
@@ -803,7 +771,7 @@ We can also recreate @fig-intercept-sds using the Bayesian censored normal model
 
 ```{r}
 #| label: bayes-int-sd
-source("R/get_trend_bayes.R")
+
 res <- map(
   pre_sds,
   \(sd) get_trend_bayes(sd = sd)

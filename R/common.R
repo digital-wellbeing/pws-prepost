@@ -27,10 +27,3 @@ theme_set(
       plot.tag.position = c(0, 1)
     )
 )
-
-scale_x_hours <- list(
-  scale_x_continuous(
-    breaks = c(0, 15/60, 0.5, 45/60, 1, 2, 3),
-    labels = c(0, "15m", "30m", "45m", "1h", "2h", "3h")
-  )
-)

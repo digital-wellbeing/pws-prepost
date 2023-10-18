@@ -4,7 +4,7 @@
     "Repositories": [
       {
         "Name": "CRAN",
-        "URL": "https://cran.rstudio.com"
+        "URL": "https://cloud.r-project.org"
       }
     ]
   },
@@ -92,7 +92,7 @@
       "Package": "QuickJSR",
       "Version": "1.0.6",
       "Source": "Repository",
-      "Repository": "CRAN",
+      "Repository": "RSPM",
       "Requirements": [
         "R6",
         "Rcpp",
@@ -159,7 +159,7 @@
       "Package": "StanHeaders",
       "Version": "2.26.28",
       "Source": "Repository",
-      "Repository": "CRAN",
+      "Repository": "RSPM",
       "Requirements": [
         "R",
         "RcppEigen",
@@ -476,7 +476,7 @@
       "RemoteType": "github",
       "RemoteUsername": "stan-dev",
       "RemoteRepo": "cmdstanr",
-      "RemoteRef": "master",
+      "RemoteRef": "HEAD",
       "RemoteSha": "17678d554324af0e2b9ddb0f66d2dc5b3b4930d4",
       "RemoteHost": "api.github.com",
       "Requirements": [
@@ -490,7 +490,7 @@
         "rlang",
         "withr"
       ],
-      "Hash": "be3cd187fa6e18a5dd31121c03e04df7"
+      "Hash": "422741569558f24bb3fe3cb212e742ab"
     },
     "coda": {
       "Package": "coda",
@@ -2035,9 +2035,15 @@
     },
     "rstan": {
       "Package": "rstan",
-      "Version": "2.26.23",
-      "Source": "Repository",
-      "Repository": "CRAN",
+      "Version": "2.26.24",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "rstan",
+      "RemoteUsername": "stan-dev",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "4722caee9675f1b03232121816de5b9796c15028",
+      "RemoteSubdir": "rstan/rstan",
       "Requirements": [
         "BH",
         "QuickJSR",
@@ -2054,7 +2060,7 @@
         "pkgbuild",
         "stats4"
       ],
-      "Hash": "137e535a84b86280c714315e587a435b"
+      "Hash": "58589e25a9f63b80aa65abee0ba6fbc8"
     },
     "rstanarm": {
       "Package": "rstanarm",

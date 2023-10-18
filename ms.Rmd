@@ -1,0 +1,1014 @@
+---
+title: "Affective Uplift During Video Game Play: A Naturalistic Case Study"
+shorttitle: Affective Uplift During Play
+leftheader: Affective Uplift During Play
+author: 
+  - name: Matti Vuorre
+    corresponding: yes
+    affiliation: "1,2*"
+    address: Tilburg University
+    email: mjvuorre@uvt.nl
+  - name: Nick Ballou
+    affiliation: "2*"
+  - name: Thomas Hakman
+    affiliation: "2"
+  - name: Kristoffer Magnusson
+    affiliation: "2,3"
+  - name: Andrew K. Przybylski
+    affiliation: "2"
+    address: Oxford Internet Institute
+    email: andy.przybylski@oii.ox.ac.uk
+affiliation:
+  - id: 1
+    institution: Tilburg School of Social and Behavioral Sciences, Tilburg University
+  - id: 2
+    institution: Oxford Internet Institute, University of Oxford
+  - id: 3
+    institution: Centre for Psychiatry Research, Department of Clinical Neuroscience, Karolinska Institutet, & Stockholm Health Care Services, Region Stockholm, Sweden
+authornote: |
+  \noindent \textbf{This pre-print is not yet peer-reviewed.} 
+  *MV and NB contributed equally to this work.
+  
+wordcount: '`r scales::number(wordcountaddin:::word_count("ms.Rmd"), big.mark = ",")`'
+bibliography: references.bib
+keywords: "video games, well-being, mood, play behavior, telemetry"
+csl: apa.csl
+floatsintext: yes
+linenumbers: no
+draft: no
+mask: no
+figurelist: no
+tablelist: no
+footnotelist: no
+documentclass: apa7
+classoption: jou
+output: 
+  papaja::apa6_pdf:
+    number_sections: false
+    keep_tex: true
+  papaja::apa6_docx: 
+    number_sections: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: prepare
+#| cache: false
+
+library(scales)
+library(cmdstanr)
+library(splines)
+library(emmeans)
+library(posterior)
+library(lme4)
+library(brms)
+library(gt)
+library(ggstance)
+library(ggdist)
+library(patchwork)
+library(tidyverse)
+source("R/functions.R")
+source("R/common.R")
+
+dir.create("models", FALSE)
+```
+
+# Introduction
+
+How do video games affect players' well-being? Games are often studied for their potential in catalyzing psychological change over timescales spanning from weeks to months [e.g., effects on school performance, depression, or life satisfaction, @sauterSocialContextGaming2021; @vuorreTimeSpentPlaying2022], and the surrounding public debate has typically focused on play's far-reaching consequences on players' mental health, social attitudes, or cognitive development [@fergusonDoesSexualizationVideo2022; @hilgardOverestimationActionGameTraining2019; @mathurFindingCommonGround2019]. In stark contrast, typical play appears to be motivated by short-term goals, such as wanting to unwind after a long day, escape to a pleasant non-reality in the moment, or engage in uplifting social interaction over periods of hours [@bourgonjonPlayersPerspectivesPositive2016; @kahnTrojanPlayerTypology2015; @stensengAreThereTwo2021]. Such short-term dynamics between play and affect can exist but need not necessarily accumulate into long-term impacts. For example, games might provide relief, relaxation, and brief improvements in mood over several hours [@riegerEatingGhostsUnderlying2015; @russonielloEffectivenessCasualVideo2009; @tyackRestorativePlayVideogames2020], after which the effects taper out as individuals return to their baseline moods.
+
+Understanding whether and when games' short-term effects emerge is critical for establishing games' potential for mood-related interventions, as well as for building a theoretical foundation for repeated short-term gaming experiences' long-term effects on mental health. At present, however, the prevalence and magnitude of these short-term effects remains poorly understood. Some existing evidence suggests that games can provide short-term boosts to well-being ["mood repair"; @bowmanMoodGameSelective2015; @tyackRestorativePlayVideogames2020], possibly to a greater extent than non-interactive media such as videos [@riegerEatingGhostsUnderlying2015]. On the other hand, games might affect players negatively: Frustrating gaming experiences, for example, can lead to negative consequences such as immediate post-play aggression [@przybylskiCompetenceimpedingElectronicGames2014]. 
+
+Despite the above examples, the validity and generalizability of research on games' short-term affective effects remains limited by three challenges. First, a substantial portion of gameplay research has relied on artificial stimuli; games created or substantially modified by academic researchers. While such customized games allow for greater experimental control, they are unlikely to reflect actual games' rich complexity [@mcmahanConsiderationsUseCommercial2011]. This issue of the limited ecological validity and generalizability of research stimuli (games) limits current inferences about popularly played games' psychological effects. 
+
+The second challenge is providing an ecologically valid *context* for play. Research participants typically play games in (online or physical) labs that do not resemble the natural contexts of play, such as when, with whom, and why people choose to play. In lab settings, research participants play to satisfy study requirements, rather than the intrinsic motivations that typically lead them to play. While beneficial to clarifying causal inferences, the extrinsically motivated play behaviors necessary in lab studies might relate differently to well-being than intrinsically motivated naturally occurring play [@bruhlmannMotivationalProfilingLeague2020; @howardStudentMotivationAssociated2021]. Therefore, results from such studies are less likely to accurately generalize to how games are played in the real world.
+
+The third challenge concerns the timescale of effects: How quickly do potential effects emerge, and how long are they sustained? For example, some studies indicate that by the end of a half-hour game session, players may exhibit changes in stress [@russonielloEffectivenessCasualVideo2009], aggressive affect [@przybylskiCompetenceimpedingElectronicGames2014], and vitality [@tyackRestorativePlayVideogames2020]. When and how video games' effects evolve during the initial half-hour remains unclear and difficult to study because researchers are typically unable to ask questions at a sufficient temporal resolution, with notable exceptions of @boweyPredictingBeliefsNPC2021 and @frommelGatheringSelfReportData2021, who used non-player characters to ask questions directly within the game. However, they did not enquire about well-being, leaving it unclear when and how the affective dimensions of play change on short timescales.
+
+Here, we aim to address these three challenges to better understand how real play in natural contexts might predict mood on short timescales. Specifically, we examined an intensive longitudinal dataset from the popular commercially available game PowerWash Simulator [PWS; @vuorreIntensiveLongitudinalDataset2023], which includes mood questions embedded in the game itself, to ask three questions: First, to what extent does mood change from immediately before video game play to during play? Second, hyow heterogeneous are these changes in the population of similar players? And third, how do changes in mood develop over the course of a gaming session?
+
+## Methods
+
+<!-- Data wrangling code -->
+
+```{r}
+#| label: data-get
+
+# Download, unzip data from OSF PWS database
+path <- "data-raw/data.zip"
+if (!file.exists(path)) {
+  dir.create("data-raw", FALSE)
+  download.file(
+    url = "https://osf.io/download/j48qf/",
+    destfile = "data-raw/data.zip"
+  )
+  dir.create("data", FALSE)
+  unzip(
+    zipfile = path,
+    files = c(
+      "data/demographics.csv",
+      "data/study_prompt_answered.csv"
+    )
+  )
+}
+
+# Load data to R session
+dat <- read_csv(
+  "data/study_prompt_answered.csv",
+  col_select = c(
+    pid,
+    time = Time_utc,
+    duration = CurrentSessionLength,
+    prompt = LastStudyPromptType,
+    mood = response
+  )
+)
+
+# Convert types and units
+dat <- dat |>
+  mutate(
+    pid = factor(pid),
+    # Mood to 0-1 scale
+    mood = mood / 1000,
+    # hours indicates session duration in hours
+    hours = duration / 60,
+    .keep = "unused"
+  )
+```
+
+```{r}
+#| label: session-indicator-create
+#| include: true
+
+dat <- dat |>
+  arrange(pid, time) |>
+  mutate(
+    new_session = hours < lag(hours, default = 999),
+    session = cumsum(new_session),
+    .by = pid
+  ) |>
+  select(-c(new_session)) |>
+  mutate(ps = paste(pid, session, sep = "_"))
+
+dat_sum <- dat |>
+  summarize(
+    when = "raw",
+    n_pid = length(unique(pid)),
+    n_session = length(unique(ps)),
+    n_obs = n()
+  )
+```
+
+```{r}
+#| label: mood-filter
+
+# Include only wellbeing responses that occurred
+# in sessions with both "pre" and "post" measures
+dat <- dat |>
+  filter(prompt == "Wellbeing") |>
+  select(-prompt)
+
+dat_sum <- dat |>
+  summarize(
+    when = "mood",
+    n_pid = length(unique(pid)),
+    n_session = length(unique(ps)),
+    n_obs = n()
+  ) |>
+  bind_rows(dat_sum)
+```
+
+```{r}
+#| label: fig-session-durations
+#| include: false
+#| fig-height: 3
+#| fig.cap: Summaries of session durations. X-axes are truncated at 10 hours.
+
+p_durations <- dat |>
+  filter(hours == max(hours), .by = ps) |>
+  ggplot(aes(hours)) +
+  scale_x_continuous(
+    "Session duration",
+    expand = expansion(c(0.05, 0.05))
+  ) +
+  scale_y_continuous(
+    "Sessions",
+    expand = expansion(c(0, 0.05))
+  ) +
+  coord_cartesian(xlim = c(0, 10)) +
+  geom_histogram(binwidth = 0.33)
+
+p_mean_durations <- dat |>
+  filter(hours == max(hours), .by = ps) |>
+  summarise(hours = mean(hours), n = n(), .by = pid) |>
+  ggplot(aes(hours)) +
+  scale_x_continuous(
+    "Mean session duration",
+    expand = expansion(c(0.05, 0.05))
+  ) +
+  scale_y_continuous(
+    "Players",
+    expand = expansion(c(0, 0.05))
+  ) +
+  coord_cartesian(xlim = c(0, 10)) +
+  geom_histogram(binwidth = 0.33)
+
+p_ecdf_durations <- dat |>
+  filter(hours == max(hours), .by = c(session, pid)) |>
+  ggplot(aes(hours)) +
+  scale_x_continuous(
+    "Session duration",
+    expand = expansion(c(0.05, 0.05))
+  ) +
+  scale_y_continuous(
+    "Cumulative proportion",
+    expand = expansion(0.01),
+    breaks = (0:10) / 10
+  ) +
+  stat_ecdf() +
+  coord_cartesian(xlim = c(0, 10))
+
+p_durations | p_mean_durations | p_ecdf_durations
+
+dat <- dat |>
+  filter(hours <= 5)
+
+dat_sum <- dat |>
+  summarize(
+    when = "5h",
+    n_pid = length(unique(pid)),
+    n_session = length(unique(ps)),
+    n_obs = n()
+  ) |>
+  bind_rows(dat_sum)
+```
+
+```{r}
+#| label: wrangle-more
+#| include: false
+
+# Drop rows with missing mood responses
+dat <- dat |>
+  drop_na(mood) |>
+  mutate(pid = fct_drop(pid))
+
+# Create indicators for analyses
+dat <- dat |>
+  mutate(
+    post = factor(
+      row_number() > 1,
+      levels = c(FALSE, TRUE),
+      labels = c("0", "1")
+    ),
+    .by = c(pid, session)
+  ) |>
+  # Censoring indicator
+  mutate(
+    cl = case_when(
+      mood == 0 ~ "left",
+      mood == 1 ~ "right",
+      TRUE ~ "none"
+    )
+  )
+
+dat_sum <- dat |>
+  summarize(
+    when = "non-na",
+    n_pid = length(unique(pid)),
+    n_session = length(unique(ps)),
+    n_obs = n()
+  ) |>
+  bind_rows(dat_sum)
+
+# How many sessions had pre-mood & post-mood
+dat |>
+  mutate(
+    has_pre = any(hours == 0),
+    has_post = any(hours != 0),
+    has_both = has_pre & has_post,
+    .by = ps
+  ) |>
+  distinct(ps, has_pre, has_post, has_both) |>
+  summarise(
+    n_pre = number2(sum(has_pre)),
+    n_post = number2(sum(has_post)),
+    n_both = number2(sum(has_both)),
+    p_pre = percent2(mean(has_pre)),
+    p_post = percent2(mean(has_post)),
+    p_both = percent2(mean(has_both))
+  )
+
+# Use contrast coding with unit difference
+contrasts(dat$post) <- c(-0.5, 0.5)
+
+# Write data for any supplementary notebooks
+dir.create("data", FALSE)
+write_rds("data/data.rds")
+```
+
+<!-- End code -->
+
+In this study, we analyzed data from a large open dataset on PowerWash Simulator (PWS) play and psychological experiences [@vuorreIntensiveLongitudinalDataset2023]. The data was collected in a research edition of PWS that recorded gameplay events, game status records, and responses to psychological survey items. We developed the research edition of PWS in collaboration with PWS's developer, FuturLab, who made it freely available on Steam to anyone who owned the original game (£19.99 on 2023-09-20). From the players' perspective, the research edition was nearly identical to that of the main game with the addition of in-game pop-ups that inquired about psychological states during play. 
+
+### PowerWash Simulator 
+
+PWS is a first-person simulation game developed by FuturLab. In the game, players run a small power washing business and take jobs from a variety of clients in different locations in the form of levels. The core mechanic of PWS is aiming and using a pressure washer to remove dirt from various objects and levels, ranging from Ferris wheels to skateparks. Progression happens sequentially through a career mode in which the player earns credits for cleaning objects and completing cleaning jobs. These credits can be used to upgrade the pressure washer to increase its range and effectiveness, as well as to purchase cosmetic modifications for the washer or avatar. The game offers a multiplayer mode which was disabled in the research version. 
+
+Critically, in addition to regular gameplay, the research edition surfaced psychological survey items to the player during play sessions. These survey items were integrated into the game as pop-ups using the existing in-game character dialogue system and delivered by a newly created character called "The Researchers" making them both conversational and part of the game lore, ensuring minimal disruption to the play experience. The maximum number of questions per hour was six, with a window of at least five minutes in between pop-ups. In addition, at the beginning of each play session, at player login, there was a 10% probability that the player was asked a question about their mood before starting play. Furthermore, players were also given the option to self-report mood in the main menu once every 30 minutes, but we excluded those menu reports in this manuscript. 
+
+### Participants 
+
+```{r}
+#| label: demographics
+
+demo <- read_csv(
+  "data/demographics.csv",
+  col_select = c(pid, country, gender, age)
+) |>
+  filter(pid %in% unique(dat$pid))
+
+age <- median_qi(demo, age, .width = .8, na.rm = TRUE)
+
+age <- str_glue("{age[1]} ({age[2]}, {age[3]}; 1st and 9th deciles)")
+
+gender <- count(demo, gender, sort = TRUE) |>
+  mutate(p = n / sum(n)) |>
+  mutate(x = str_glue("{gender} ({number2(n)}, {percent2(p)})")) |>
+  slice(1:4) |>
+  pull(x) |>
+  paste(collapse = ", ")
+
+n_country <- length(unique(demo$country[!is.na(demo$country)]))
+country <- count(demo, country, sort = TRUE) |>
+  mutate(p = n / sum(n)) |>
+  mutate(x = str_glue("{country} ({number2(n)}, {percent2(p)})")) |>
+  slice(1:4) |>
+  pull(x) |>
+  knitr::combine_words()
+```
+
+The characteristics of the full sample of 11,080 players in the PWS dataset are described in @vuorreIntensiveLongitudinalDataset2023; here, we describe the subset of data relevant to our questions (see Data analysis below). All participants were over 18 years old, provided informed consent, answered at least one mood question, and did not request their data to be deleted. The median age was `r age`, and the four most frequent gender responses were `r gender`. Participants played in `r n_country` countries, with the `r country` being the most represented. Recruitment happened in multiple waves through multiple avenues inside and outside of the game [@vuorreIntensiveLongitudinalDataset2023]. Study participation was incentivized through cosmetic in-game rewards (e.g. item skins). For every 12 questions answered, players could unlock a reward, of which five were available. These rewards could only be unlocked in the research version but were usable in both the research and main versions of PWS. 
+
+The study procedures were granted ethical approval by Oxford University's Central University Research Ethics Committee (SSH_OII_CIA_21_011). 
+
+### Measures 
+
+We measured mood with a single item: "How are you feeling right now?" [@killingsworthWanderingMindUnhappy2010]. Participants responded using a visual analogue scale (VAS) with endpoints "Very bad" and "Very good" that recorded 1000 possible values, which we rescaled to the unit interval (0-1) for this study. Consequently, our results can also be interpreted on the "[proportion] of maximum possible" scale [POMP; @cohenProblemUnitsCircumstance1999]. While well-being is often studied with multi-item scales to differentiate between dimensions of positive and negative affect, the frequent probing of mental states in this study required a minimally intrusive instrument that would interrupt the participants' play experience as little as possible. Moreover, such single-item assessments have previously been validated and are recommended for intensive longitudinal studies [@songExaminingConcurrentPredictive2022].
+
+### Data analysis 
+
+For the analyses reported here, we used a subset of the data in @vuorreIntensiveLongitudinalDataset2023 that was relevant to our questions. The full dataset contains `r number2(filter(dat_sum, when=="raw")$n_obs)` in-game survey responses, but here we ignored the enjoyment, focus, autonomy, competence, and immersion items and focused on the `r number2(filter(dat_sum, when=="mood")$n_obs)` mood responses from `r number2(filter(dat_sum, when=="mood")$n_session)` sessions and `r number2(filter(dat_sum, when=="mood")$n_pid)` players. We then excluded sessions longer than 5 hours in duration (`r percent2(1 - filter(dat_sum, when=="5h")$n_session / filter(dat_sum, when=="mood")$n_session)`) and dropped all responses with missing values (`r percent2(1 - filter(dat_sum, when=="non-na")$n_session / filter(dat_sum, when=="5h")$n_session)`). We made these decisions to reduce the complexity of our anticipated models, and under the belief that very long sessions are likely to be qualitatively different, and very rare, compared to typically shorter sessions. Our final dataset consisted of `r number2(filter(dat_sum, when=="non-na")$n_obs)` mood responses from `r number2(filter(dat_sum, when=="non-na")$n_session)` sessions and `r number2(filter(dat_sum, when=="non-na")$n_pid)` players.
+
+Our first and main research question concerned the difference between players' moods at the beginning of each session (pre-play) and during the subsequent play session (during play). This contrast does not represent a causal hypothesis: Players could begin (and end) their play sessions for whatever reason, and these reasons are likely to confound the pre – during contrast. For example, a player might come home after a stressful day at work and then play PWS. Coming home from a stressful work environment might then cause the person to both (1) choose to play, and (2) experience an elevated mood, in which case we would be in error if we attributed play itself the position of causal antecedent of any potential mood consequences. Generally, reasons for starting to play are likely to contribute to the pre-during contrast and we are unable to disentangle those from any changes specifically caused by play.
+
+We estimated this contrast within a three-level hierarchical regression model that nested observations within sessions, and sessions within players. We specified a censored Gaussian model of mood because a VAS necessarily limits response options at the lower and upper ends. Ignoring censoring would leave the contrast susceptible to ceiling or floor effects and might confound changes in the mood distribution's location with changes in its scale. We then modelled mean mood on an intercept and contrast coded time (pre-play: -0.5; during play: 0.5) and allowed both parameters to vary randomly across players. In addition, we modelled random intercepts over player sessions. Although equal residual variances across people in natural observation seem unlikely, we estimated only one residual deviation parameter to limit model complexity. 
+
+We analyzed the data with R and used the brms package to estimate, via Stan's HMC sampling algorithm, and post-process the models [@burknerBrmsPackageBayesian2017; @rcoreteamLanguageEnvironmentStatistical2023; @standevelopmentteamStanModelingLanguage2021]. We drew `r number2(N_ITER*4/2)` samples from the model's posterior distribution using brms' default prior distributions on all parameters and used numerical and graphical checks to ensure model convergence and adequacy.
+
+```{r}
+#| label: model-1-brms
+
+model <- bf(
+  mood | cens(cl) ~
+    1 + post +
+    (1 + post | pid) +
+    (1 | ps)
+) +
+  gaussian()
+
+fit1 <- brm(
+  model,
+  data = dat,
+  silent = 0,
+  iter = N_ITER,
+  control = list(adapt_delta = .95),
+  file = "models/brm-prepost-pid-ps-censored"
+)
+```
+
+```{r}
+#| label: fig-convergence
+#| fig.cap: Convergence diagnostic plot showing bivariate scatterplots of the model's population-level parameters' posterior draws.
+#| eval: false
+
+pairs(
+  fit1,
+  variable = c("b_", "sd_", "cor_"),
+  regex = TRUE,
+  off_diag_args = list(size = .33, shape = 1)
+)
+```
+
+## Results 
+
+```{r}
+#| label: fig-descriptives
+#| fig-height: 2.2
+#| fig-width: 7
+#| include: false
+#| fig.cap: 'A. Histogram of session durations (note log10 x-axis). B. Summary of how many sessions each participant completed. C. Histogram of all mood ratings.'
+
+p0 <- dat |>
+  ggplot() +
+  scale_x_continuous(
+    expand = expansion(c(0.01, 0.01)),
+  ) +
+  scale_y_continuous(
+    expand = expansion(c(0.001, 0.05)),
+  ) +
+  geom_histogram(
+    col = "white",
+    bins = 50,
+    linewidth = .25,
+    boundary = 0
+  )
+
+dat_session_durations <- dat |>
+  filter(hours == max(hours), .by = c(pid, session))
+
+dat_session_counts <- dat |>
+  distinct(pid, session) |>
+  count(pid, name = "sessions")
+
+p_durations <- p0 %+%
+  dat_session_durations +
+  aes(hours) +
+  labs(x = "Session duration (hours)", y = "Sessions")
+
+p_sessions <- p0 %+%
+  dat_session_counts +
+  coord_cartesian(xlim = c(0, 75)) +
+  aes(sessions) +
+  labs(x = "Sessions", y = "Participants")
+
+p_mood <- p0 +
+  aes(mood) +
+  labs(x = "Mood", y = "Responses")
+
+(p_durations | p_sessions | p_mood) +
+  plot_annotation(tag_levels = "A")
+```
+
+```{r}
+#| include: false
+tmp <- list(
+  dat_session_durations$hours,
+  dat_session_counts$sessions,
+  dat$mood,
+  dat$mood[dat$post == 0],
+  dat$mood[dat$post == 1]
+) |>
+  map(
+    ~ median_qi(.x, .width = 0.8, na.rm = TRUE)
+  ) |>
+  map(
+    ~ mutate(
+      .x,
+      across(
+        c(y, ymin, ymax),
+        ~ number2(., .01)
+      )
+    ) |>
+      str_glue_data("{y} [{ymin}, {ymax}]")
+  )
+tmp
+```
+
+The median session duration was `r tmp[[1]]` hours [10 and 90 percentiles]; the median player contributed data from `r tmp[[2]]` sessions, and the median mood was `r tmp[[3]]` (pre-session: `r tmp[[4]]`, during play: `r tmp[[5]]`). We illustrate these basic features of the data in Figure \@ref(fig:fig-data).
+
+### RQ1: Mood changes from pre- to during play 
+
+```{r}
+#| label: fig-data
+#| include: true
+#| fig-width: 8
+#| fig-height: 5
+#| fig.env: "figure*"
+#| fig.cap: "A. Scatterplots of three participants' (rows) mood responses (pre-play: red; during play: blue) over eight sessions' (columns) durations. B. Histograms of session-mean (C. person-mean) moods before (top) and during (bottom) play sessions. D. Differences in session-mean (E. player-mean) mood differences (during session - pre-play). F. Scatterplot of person-mean mood reports at the beginning (x-axis) and during gameplay sessions (y-axis). Identity line is shown in green, and an exploratory GAM regression line is shown in blue."
+
+# Plot: Example raw sessions
+set.seed(99)
+dat_example_sessions <- dat |>
+  add_count(pid, session, name = "obs_per_session") |>
+  filter(obs_per_session >= 4) |>
+  mutate(session = as.numeric(as.factor(session)), .by = pid) |>
+  mutate(session_per_person = length(unique(session)), .by = pid)
+
+# default
+min_sessions <- 8
+n_filtered <- dat_example_sessions |>
+  distinct(pid, session_per_person) |>
+  filter(session_per_person >= 8) |>
+  nrow()
+
+# pick anyone if there's not 3 pids with >= 4 sessions
+if (n_filtered < 3) min_sessions <- 0
+dat_example_sessions <- dat_example_sessions |>
+  filter(session_per_person >= min_sessions) |>
+  arrange(pid, session) |>
+  filter(pid %in% sample(unique(pid), 3)) |>
+  mutate(
+    Session = str_glue("Session {session}"), 
+    Person = str_glue("Person {fct_anon(pid)}")
+  )
+
+p_mood_example <- dat_example_sessions |>
+  filter(session <= 8) |>
+  ggplot() +
+  aes(hours, mood, col = post) +
+  scale_color_brewer(
+    "Pre-session measure",
+    palette = "Set1",
+    aesthetics = c("color", "fill")
+  ) +
+  scale_x_continuous(
+    "Session duration (hours)"
+  ) +
+  scale_y_continuous(
+    "Mood",
+    limits = c(0, 1),
+  ) +
+  geom_point(size = 1.5, alpha = 1) +
+  facet_grid(
+    rows = vars(Person),
+    cols = vars(Session),
+    scales = "fixed"
+  ) +
+  theme(
+    legend.position = "none",
+    strip.text.y = element_blank()
+  )
+
+# Plot: Raw mood histograms at pre and during play
+p_mood_prepost_raw <- dat |>
+  mutate(post = factor(post, labels = c("Pre-play", "During play"))) |>
+  ggplot(aes(mood, fill = post)) +
+  scale_color_brewer(
+    "Pre-session measure",
+    palette = "Set1",
+    aesthetics = c("color", "fill")
+  ) +
+  geom_histogram(bins = 30, col = "white") +
+  scale_y_continuous(
+    "Observations",
+    expand = expansion(c(0.001, 0.1)),
+    breaks = scales::extended_breaks(5)
+  ) +
+  scale_x_continuous(
+    "Mood",
+    expand = expansion(c(0.001))
+  ) +
+  facet_wrap("post", ncol = 1, scales = "free_y") +
+  theme(legend.position = "none")
+
+# Plot: Person-session-mean mood histograms at pre and during play
+p_mood_prepost_sessions <- p_mood_prepost_raw %+%
+  summarise(
+    p_mood_prepost_raw$data,
+    mood = mean(mood, na.rm = TRUE), .by = c(post, pid, ps)
+  ) +
+  scale_y_continuous(
+    "Sessions",
+    expand = expansion(c(0.001, 0.1)),
+    breaks = scales::extended_breaks(5)
+  )
+
+# Plot: Person-mean mood histograms at pre and during play
+p_mood_prepost_players <- p_mood_prepost_sessions %+%
+  summarise(
+    p_mood_prepost_raw$data,
+    mood = mean(mood, na.rm = TRUE), .by = c(post, pid)
+  ) +
+  scale_y_continuous(
+    "Players",
+    expand = expansion(c(0.001, 0.1)),
+    breaks = scales::extended_breaks(5)
+  )
+
+# Plot: Difference histogram (sessions)
+p_mood_difference_sessions <- p_mood_prepost_sessions$data |>
+  pivot_wider(names_from = post, values_from = mood) |>
+  mutate(Difference = `During play` - `Pre-play`) |>
+  drop_na(Difference) |>
+  ggplot(aes(Difference)) +
+  geom_histogram(bins = 50, col = "white") +
+  geom_vline(xintercept = 0, linewidth = .5, col = "#2ca25f") +
+  scale_y_continuous(
+    "Sessions",
+    expand = expansion(c(0.001, 0.1))
+  ) +
+  scale_x_continuous(
+    expand = expansion(c(0.001))
+  ) +
+  coord_cartesian(xlim = c(-.4, .6))
+
+# Plot: Difference histogram (players)
+p_mood_difference_players <- p_mood_prepost_players$data |>
+  pivot_wider(names_from = post, values_from = mood) |>
+  mutate(Difference = `During play` - `Pre-play`) |>
+  drop_na(Difference) |>
+  ggplot(aes(Difference)) +
+  geom_histogram(bins = 50, col = "white") +
+  geom_vline(xintercept = 0, linewidth = .5, col = "#2ca25f") +
+  scale_y_continuous(
+    "Players",
+    expand = expansion(c(0.001, 0.1))
+  ) +
+  scale_x_continuous(
+    expand = expansion(c(0.001))
+  ) +
+  coord_cartesian(xlim = c(-.4, .6))
+
+p_mood_difference <- (
+  (p_mood_difference_sessions +
+     theme(
+       axis.title.x = element_blank(),
+       axis.text.x = element_blank(),
+       axis.ticks.x = element_blank()
+     )) /
+    p_mood_difference_players
+)
+
+
+p_mood_biscatter_sessions <- p_mood_difference_sessions$data |>
+  ggplot(aes(`Pre-play`, `During play`)) +
+  scale_x_continuous(
+    expand = expansion(0.01)
+  ) +
+  scale_y_continuous(
+    expand = expansion(0.01)
+  ) +
+  geom_point(
+    alpha = .2, size = 0.33, shape = 1
+  ) +
+  geom_abline(linewidth = .5, col = "#2ca25f") +
+  geom_smooth(
+    method = "gam",
+    se = FALSE,
+    linewidth = .75,
+    col = "dodgerblue"
+  ) +
+  theme(aspect.ratio = 1)
+
+p_mood_biscatter_players <- p_mood_difference_players$data |>
+  ggplot(aes(`Pre-play`, `During play`)) +
+  scale_x_continuous(
+    expand = expansion(0.01)
+  ) +
+  scale_y_continuous(
+    expand = expansion(0.01)
+  ) +
+  geom_point(
+    alpha = .2, size = 0.33, shape = 1
+  ) +
+  geom_abline(linewidth = .5, col = "#2ca25f") +
+  geom_smooth(
+    method = "gam",
+    se = FALSE,
+    linewidth = .75,
+    col = "dodgerblue"
+  ) +
+  theme(aspect.ratio = 1)
+
+p_mood_example /
+  (
+    p_mood_prepost_sessions |
+      p_mood_prepost_players |
+      p_mood_difference |
+      p_mood_biscatter_players
+  ) +
+  plot_layout(heights = c(5, 5)) +
+  plot_annotation(tag_levels = "A")
+```
+
+We first focused on our primary research question: To what extent do PWS players' mood change from pre-play to during play? We visualized the relevant data in Figure \@ref(fig:fig-data): Panel A shows mood responses from three example participants' first eight sessions of play. Figure \@ref(fig:fig-data) B (C) then shows histograms of all sessions' (players') aggregated pre- and during play moods to facilitate visual comparison of the raw data. We show the differences in these aggregated moods in Figure \@ref(fig:fig-data) D (sessions) and E (players). Moreover, Figure \@ref(fig:fig-data) F shows the difference in player-mean pre- and during play moods across different values of pre-play moods. Overall, these figures suggested small increases in mood from pre- to during play, but also that there were broad distributions of this difference over sessions and players, and that the difference was greater for lower pre-play moods (Panel F).
+
+```{r}
+#| label: tbl-avg
+#| include: true
+#| tbl-cap: Summaries of key population-level estimates
+
+fit_tbl <- as_draws_df(
+  fit1,
+  c("b_", "sd_", "sigma"),
+  regex = TRUE
+) |>
+  transmute(
+    `Pre-play` = b_Intercept + b_post1 * -0.5,
+    `During play` = b_Intercept + b_post1 * 0.5,
+    Difference = b_post1,
+    `Difference (scaled)` = Difference /
+      (sd_pid__Intercept + sd_pid__post1 + sd_ps__Intercept + sigma),
+    `(SD) Difference` = sd_pid__post1,
+    `Positive shifts` = pnorm(0, b_post1, sd_pid__post1, lower.tail = FALSE)
+  ) |>
+  summarise_draws(
+    mean = ~ mean(.),
+    ~ quantile2(., probs = c(.025, .975))
+  ) |>
+  mutate(
+    res = str_glue("{number2(mean, .001)} [{number2(q2.5, .001)}, {number2(q97.5, .001)}]"),
+    resp = str_glue("{percent2(mean, .1)} [{percent2(q2.5, .1)}, {percent2(q97.5, .1)}]"),
+  )
+
+# Show this one as a percentage
+fit_tbl[6, "res"] <- fit_tbl[6, "resp"]
+
+fit_tbl |> 
+  mutate(Variable = variable, Estimate = res, .keep = "none") |> 
+  papaja::apa_table(
+    span_text_columns = FALSE, 
+    caption = "Summaries of the hierarchical model's key population-level estimates.",
+    note = "Numbers indicate posterior means and 95%CIs. Difference (scaled) is the standardized during play--pre-play difference."
+  )
+```
+
+We then turned to the model's results regarding (differences) in players' moods. They confirmed the visual impressions described above: Table \@ref(tab:tbl-avg) indicates that the average PWS player experiences a `r filter(fit_tbl, variable=="Difference")$res` unit increase in mood during PWS play, on a VAS from 0 to 1. We also interpreted this difference in a different light by dividing it by the total random variation estimated by the model. This standardized pre-play – during play contrast was `r filter(fit_tbl, variable=="Difference (scaled)")$res`. 
+
+### RQ2: Heterogeneity in mood changes 
+
+Although the above quantities indicated that the average player's mood did increase from before to during play, they say little about the robustness of this difference in the population of similar players. We therefore next turned to our second research question: How heterogeneous are mood shifts in the population of similar PWS players? First, the standard deviation of the person-specific mood differences was `r filter(fit_tbl, variable=="(SD) Difference")$res`. In comparison to the average person's estimated difference (`r filter(fit_tbl, variable=="Difference")$res`), that quantity indicated a moderate degree of heterogeneity between individuals. More specifically, the model-predicted proportion of individuals expected to experience positive changes from pre- to during play was `r filter(fit_tbl, variable=="Positive shifts")$resp`. 
+
+In sum, the results from our model contrasting pre- and during play moods indicated small increases in mood during play, and that those changes were robust across people.
+
+### RQ3: Time course of mood changes during play 
+
+The above analysis provides an easily interpretable contrast between during-play moods and moods just before play. However, it does not address the time course of moods *within* the sessions. We therefore next turned to our third question: How do (changes in) players' moods evolve during gameplay sessions? To answer, we used time as a continuous predictor and allowed mood changes during sessions to be non-linear by estimating a piecewise cubic spline with 4 degrees of freedom. Just like the main model, this was a three-level hierarchical model, with random intercepts at the session and participant levels, and random participant slopes for each piece of the spline. Moreover, in a separate model, we also examined how within-session change related to mood before play by including pretest values as a covariate and modeled the hour-by-pretest continuous interaction. We also modeled pretest mood with a cubic spline to allow the relationship to be non-linear.
+
+```{r}
+#| label: model-2-3-lmer
+
+fit2 <- fit_cached(
+  "models/lmm-ns4.Rds",
+  lmer(
+    mood ~ ns4(hours) + (1 | ps) + (1 + ns4(hours) | pid),
+    data = dat
+  )
+)
+
+dat_pre <- dat |>
+  filter(
+    # Session has a wellbeing measure at time = 0
+    hours[1] == 0,
+    .by = c(pid, session)
+  ) |>
+  mutate(
+    pre = mood[1],
+    .by = c(pid, session)
+  ) |>
+  filter(
+    hours > 0
+  ) |>
+  droplevels()
+
+fit3 <- fit_cached(
+  "models/lmm-pre-interaction.Rds",
+  lmer(
+    mood ~ ns4(hours) * ns(pre, 5) + (1 + ns4(hours) | pid) + (1 | ps),
+    data = dat_pre
+  )
+)
+```
+
+The main model without an interaction with pre-play mood included all mood responses, sessions, and participants as above. However, the interaction model required each session to have a pre-play mood measure, which led to `r number2(lme4::ngrps(fit3)["pid"])` players, `r number2(lme4::ngrps(fit3)["ps"])` sessions, and `r number2(nobs(fit3))` observations included in that model. 
+
+We chose not to use model censoring in these models due to the increased computational cost. However, we performed sensitivity analyses with and without censoring on a reduced data set (1000 participants), which indicated nearly identical results. At worst, ignoring censoring resulted in slightly different intercepts; that is, the whole curve was shifted up or down.
+
+```{r}
+#| label: fig-ct1
+#| include: true
+#| fig.cap: "Estimated (changes) in mood as a function of session duration. Top: Average mood during a gaming session. Bottom: Change in mood during a session compared to mood at the beginning of a session. Gray ribbons indicate 95\\% confidence bands. We truncated the x-axis at three hours for this figure."
+#| fig-height: 3
+#| fig-width: 5
+
+XMAX <- 3
+XOUT <- 100
+hours <- seq(0, XMAX, length.out = XOUT)
+emm2_mood <- emmeans(
+  fit2,
+  ~hours,
+  at = list(hours = hours),
+  lmer.df = "asymptotic"
+)
+
+emm2_diff <- contrast(
+  emm2_mood,
+  method = "trt.vs.ctrl",
+  ref = "hours0"
+) |>
+  confint() |>
+  as.data.frame() |>
+  mutate(
+    hours = hours[-1],
+    res = str_glue(
+      "{number2(estimate, .001)} ",
+      "[{number2(asymp.LCL, .001)}, {number2(asymp.UCL, .001)}]"
+    )
+  )
+
+bind_rows(
+  "Mood" = as_tibble(emm2_mood),
+  "Difference" = as_tibble(emm2_diff) |>
+    rename(emmean = estimate),
+  .id = "x"
+) |>
+  mutate(x = fct_rev(x)) |>
+  ggplot(aes(hours, emmean)) +
+  scale_y_continuous(
+    "Value",
+    breaks = extended_breaks(7)
+  ) +
+  geom_hline(
+    data = tibble(
+      x = c("Mood", "Difference") |> fct_rev(),
+      y = c(NaN, 0)
+    ),
+    aes(yintercept = y),
+    linewidth = .5, col = "#2ca25f"
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL
+    ),
+    alpha = 0.25
+  ) +
+  scale_x_continuous(
+    "Session duration (hours)",
+    breaks = c(0, 0.5, 1, 2, 3, 4, 5),
+    labels = c("0m", "30m", "1h", "2h", "3h", "4h", "5h"),
+    expand = expansion(0.01)
+  ) +
+  facet_wrap(
+    "x",
+    ncol = 1,
+    scales = "free_y",
+    strip.position = "left"
+  ) +
+  theme(
+    axis.title.y = element_blank(),
+    strip.placement = "outside",
+    strip.text = element_text(size = rel(1), hjust = 0.5)
+  )
+```
+
+```{r}
+#| label: fig-ct2
+#| fig.env: "figure*"
+#| include: true
+#| fig.cap: "Estimated (changes) in mood as a function of session duration and pre-play mood. Top. Mood for the average player during a gaming session with pre-play mood at 5th, 25th, 50th, and 75th percentiles (columns). Ribbons indicate 95\\% confidence. Bottom. Same as above but with change in mood on the y-axis."
+#| fig-height: 3
+#| fig-width: 8
+
+pre <- dat_pre |>
+  summarise(pre = pre[1], .by = ps) |>
+  pull(pre)
+pre_values <- quantile(pre, c(0.05, .25, 0.5, 0.75))
+pre_labels <- c("5th", "25th", "Median", "75th")
+
+emm3_mood <- emmeans(
+  fit3,
+  ~ hours + pre,
+  at = list(
+    hours = hours,
+    pre = pre_values
+  ),
+  lmer.df = "asymptotic"
+)
+
+emm3_diff <- emm3_mood |>
+  contrast(
+    method = "trt.vs.ctrl",
+    ref = "hours0",
+    by = "pre"
+  ) |>
+  confint() |>
+  mutate(
+    hours = rep(hours[-1], length(pre_values)),
+    emmean = estimate,
+    .keep = "unused"
+  )
+
+bind_rows(
+  "Mood" = as_tibble(emm3_mood),
+  "Difference" = as_tibble(emm3_diff),
+  .id = "x"
+) |>
+  mutate(x = fct_rev(x)) |>
+  mutate(pre = factor(pre, levels = pre_values, labels = pre_labels)) |>
+  ggplot(aes(hours, emmean)) +
+  scale_y_continuous(
+    "Value",
+    breaks = extended_breaks(7)
+  ) +
+  geom_hline(
+    data = tibble(
+      x = c("Mood", "Difference") |> fct_rev(),
+      y = c(NaN, 0)
+    ),
+    aes(yintercept = y),
+    linewidth = .5, col = "#2ca25f"
+  ) +
+  geom_line() +
+  geom_ribbon(
+    aes(
+      ymin = asymp.LCL,
+      ymax = asymp.UCL
+    ),
+    alpha = 0.25
+  ) +
+  scale_x_continuous(
+    "Session duration (hours)",
+    breaks = c(0, 0.5, 1, 2, 3, 4, 5),
+    labels = c("0", "30m", "1h", "2h", "3h", "4h", "5h"),
+    expand = expansion(0.01)
+  ) +
+  facet_grid(
+    x ~ pre,
+    scales = "free_y",
+    switch = "y",
+  ) +
+  theme(
+    axis.title.y = element_blank(),
+    strip.placement = "outside",
+    strip.text = element_text(size = rel(1), hjust = 0.5)
+  )
+```
+
+This continuous time analysis added three important nuances to the simpler pre-during play contrast presented above. First, Figure \@ref(fig:fig-ct1) shows how the average mood increased during a session, suggesting a small but sharp uplift early during a session, and slightly greater in magnitude to the pre-during contrast. Second, the bulk of this increase occurred early in play sessions, with an increase of `r slice(emm2_diff, floor(XOUT/XMAX*0.25))$res` units for the average player after 15 minutes of play. Third, the rate and shape of change depended on the participants' initial mood levels. Figure \@ref(fig:fig-ct2) shows (changes in) estimated mood over a typical session based on different percentiles of pre-play mood, where the lower percentiles (5th percentile of pre-play mood = `r number2(pre_values[1], .01)`, and 25th = `r number2(pre_values[2], .01)`) showed greater uplift in moods during a session compared to median or greater pre-play mood levels.
+
+---
+abstract: Do video games affect players' well-being? In this case study, we examined `r number2(nrow(dat))` intensive longitudinal in-game mood reports from `r number2(length(unique(dat$ps)))` play sessions of `r number2(length(unique(dat$pid)))` players of the popular game PowerWash Simulator. We compared players' moods at the beginning of play session with their moods during play, and found that the average player reported  `r filter(fit_tbl, variable=="Difference")$res` visual analog scale (VAS; 0-1) units greater mood during than at the beginning of play sessions. Moreover, we predict that `r filter(fit_tbl, variable=="Positive shifts")$resp` of similar players experience this affective uplift during play, and that the bulk of it happens during the first 15 minutes of play. We do not know whether these results indicate causal effects or to what extent they generalize to other games or player populations. Yet, these results based on in-game subjective reports from players of a popular commercially available game suggest good external validity, and as such offer a promising glimpse of the scientific value of transparent industry-academia collaborations in understanding the psychological roles of popular digital entertainment.
+---
+
+## Discussion 
+
+The current study corroborates what qualitative research and reports from video game players around the world have long suggested: People feel good playing games. Specifically, we find that playing a popular commercial video game, PowerWash Simulator, is linked with a small improvement in mood, that this improvement is experienced by `r filter(fit_tbl, variable=="Positive shifts")$resp` of players, and that the bulk of the improvement occurs during the first 15 minutes of play.  
+
+Although the overall magnitude of the estimated change was small (`r filter(fit_tbl, variable=="Difference")$res`), it nevertheless is comparable to mood shifts following other frequent voluntary activities. For example, experience sampling studies of US [@killingsworthWanderingMindUnhappy2010] and Korean [@choiTakingStockHappiness2017] adults indicated that watching television (+2% change compared to an individual's average across all activities), reading (+2%), and shopping (+3%) were associated with smaller mood shifts than we observed in association with PWS. On the other hand, those studies indicated that listening to music (+7–9%), eating or cooking (+8%), taking a walk (+9%), visiting an urban green space [+9–10%; @tostNeuralCorrelatesIndividual2019], exercising (+11%), dating (26.5%), sexual intercourse (+28%), or taking a trip (+30.5%) correlate with greater shifts in well-being.
+
+Another interpretation of our result is that although the estimated PWS-play associated mood uplift is small, it is potentially large enough to be subjectively perceived. @anvariUsingAnchorbasedMethods2021 suggest that, on average, people are able to subjectively perceive a change of 2% in well-being on the related PANAS scale. Since our estimate of `r filter(fit_tbl, variable=="Difference")$res` is greater, we tentatively suggest that gaming, on average, is associated with mood uplifts that are large enough to be consciously felt by players.
+
+Moreover, it is possible that the uplift we report is an underestimate of the true effect of playing games. The estimated average pre-play mood in our study (`r filter(fit_tbl, variable=="Pre-play")$res`) was comparatively greater than average moods reported in previous experience sampling studies using the same measure [58%, @choiTakingStockHappiness2017; 65%, @killingsworthWanderingMindUnhappy2010]. Assuming measurement equivalence, we might then hypothesize reasons for these between-sample differences: It is possible that our sample felt, on average, more positive than those other samples of US and Korean adults. Alternatively, it is possible that players in our study experienced an anticipatory mood benefit from playing video games. We believe the second of these is more likely: Anticipating an opportunity to play, and everything associated with the opportunity to play, is likely to immediately impact the player's mood, before play starts. 
+
+By examining questionnaire items embedded in the game interface during natural play sessions, our study is the first to examine changes in mood during play sessions in a minute-by-minute resolution. These data indicate that the majority of the observed rise in affective well-being during play sessions occurs during the first 15 minutes of play, and that mood stabilizes for the following few hours without return to pre-play levels. These results suggest that, at least for certain kinds of games and keeping in mind our caveats regarding causality, many players might benefit from interspersing short play sessions into their day or throughout their leisure time. These patterns are already commonly seen in casual or idle games [@cuttingBusyDoingNothing2019], which share certain features with lower-demand simulation games such as PowerWash Simulator.
+
+Our results highlight at least three important unanswered questions. First, what are the mechanisms driving mood changes associated with video game play? Second, how long do mood changes last after gameplay? Third, under what conditions do the short-term "mood repair" effects of games accumulate and contribute to long-term increases in well-being?
+
+Current theories provide a few candidates regarding mood change mechanisms. Mood management theory [MMT; @zillmannMoodManagementCommunication1988] posits that players choose specific entertainment media as part of a (conscious or subconscious) strategy to regulate valence and arousal and to increase hedonic well-being. Specifically, MMT predicts that when players feel more negative emotions, they are more likely to select games with positive hedonic valence (i.e., games that are generally positive in tone), and that when players are in high arousal states such as anger stress, they are more likely to choose calm and relaxing games with.
+
+PowerWash Simulator provides an ideal case study for mood management theory, in that it is typically described as a low cognitive effort game: Players are known to play semi-idly with only partial focus, or even while consuming other media. As one reviewer writes, "When my brain is tired, or I'm not in the mood to compete or struggle in any way, I grab a power washer" [@marshallPowerWashSimulatorMy2021]. Accordingly, PWS may be especially well-suited for players who are emotionally or cognitively depleted, such as those with persistently low mood [@helsbyBandwidthComesGoes2023]---something that is partially supported by our findings that sessions with lower initial moods were those with larger uplifts during play. Although outside the scope of this study, we believe that the additional telemetry in the PWS dataset [@vuorreIntensiveLongitudinalDataset2023] would be valuable in addressing more nuanced questions regarding MMT.
+
+Another candidate derives from self-determination theory [@ryanSelfdeterminationTheoryBasic2017]. At least one laboratory study has shown that the experience of basic psychological need satisfaction during media consumption moderates the change from pre–post play well-being [@tyackRestorativePlayVideogames2020]. Another found that need satisfaction in two commercial games, Animal Crossing: New Horizons and Plants vs Zombies: Battle for Neighborville, was independently associated with well-being, regardless of the amount of playtime [@johannesVideoGamePlay2021]. It may be the case, then, that experiences with greater feelings of mastery and effectiveness (competence satisfaction) or control and volition (autonomy satisfaction) would result in larger mood increases during PWS play. While we did not test these causal mechanisms between play and well-being in the current study, we anticipate several theory-driven detailed investigations of the PWS dataset [@vuorreIntensiveLongitudinalDataset2023] that might do so.
+
+Second, we do not know whether the mood uplift associated with PWS play lingers or disappears after the gaming session ends. Answering this question would afford a better understanding of the motivations behind play: To what extent do people play games for their immediate hedonic benefits in contrast to the emotional and cognitive state players find themselves in after stopping? The difference between these two experiences might be an important differentiator between, for example, maladaptive *escaping from* and adaptive *escaping to* [@stensengAreThereTwo2021]. To answer this question, however, in-game telemetry data will need to be complemented with out-of-game psychological measures assessing well-being in the period after play. We anticipate that experience sampling methods, which are common in social media research [@aalbersCaughtMomentAre2022; @verbeijExperienceSamplingSelfreports2022] but have yet to make meaningful inroads in video games research, would be particularly valuable in addressing this question.
+
+Finally, what does this result tell us about the long-term impacts of video game play on well-being? Observational studies relating well-being to time spent playing games over 2 weeks [@vuorreTimeSpentPlaying2022], 1 month [@sibillaHarmoniousObsessiveInvolvement2021], 6 months [@lemmensPsychosocialCausesConsequences2011; @weinsteinProspectiveStudyMotivational2017] and 1 year [@kowertPsychosocialCausesConsequences2015] suggest null or practically inconsequential relationships between play and well-being indicators such as affect and psychological health. Thus, we must square the current evidence for a short-term uplift in mood with existing evidence suggesting little to no meaningful long-term relations, and explicitly articulate why they would differ [@anvariNotAllEffects2023]. Against that juxtaposition, we believe our findings are most consistent with the notion that gaming---for most people---is a recovery activity that helps to manage day-to-day stresses and mood fluctuations, without necessarily having substantial long-term impacts. The majority of players have several options for activities in their environment that would have comparable effects on their well-being. These activities are thus "exchangeable" and serve the same short-term goals without consequences to people's long-term adjustment. 
+
+Moreover, while we have focused on discussing mood changes for the average player, our results also indicated moderate between-person heterogeneity in mood changes during play. Future studies might benefit from examining variations in mood shifts across types of players (and play), rather than focusing solely on the general gaming population, which necessarily varies widely in the games they play, how they play them, and their psychological characteristics. For example, disordered gaming is one type of play linked with negative effects [@karhulahtiPhenomenologicalStrandsGaming2022], and playing during difficult life circumstances is one linked with positive effects [@iacovidesRoleGamingDifficult2019]. We believe that understanding the multiverse of play, including temporal patterns, social experiences, in-game behaviors and events, players' personalities, its antecedents, and consequences warrants continued research efforts coordinated across and beyond academia.
+
+### Limitations
+
+This study was not an experiment, nor did we employ methods required for rigorous causal inference from observational data, and therefore our results regarding the causal effects of video game play on mood are tentative at best. Without a control condition, we have nothing to compare our results to: We cannot say if the changes in mood observed during PWS play would have occurred with other games, non-game activities, or indeed no activity at all. For example, our results might indicate mood increases that are accounted for by starting a period of leisure time, and not play specifically. Future work should consider the use of randomized controlled trials to evaluate the effect of playing PowerWash simulator or other games compared to other leisure activities or therapeutic interventions.
+
+As always, the results here are likely to generalize in some ways but not in others. Our sample is somewhat representative with regard to gender and covers a wide age range roughly in line with the age demographics of general US adult video game players [@engelstatterVideoGamesBecome2022], suggesting that our results may generalize to other adult PWS players from Western countries. They are less likely to generalize to younger players and those from non-Western countries. The sample may further suffer from self-selection bias: Given that players voluntarily chose to download the PWS research edition, it is plausible that people who felt more positively toward the game (and more positively while playing it) were more likely to opt into the study. Finally, we studied just one commercial video game with a feature set that is very different from today's most commonly-played PC games [which at the time of writing include, for example, Minecraft, Fortnite, and Baldur's Gate 3, but only one other simulation game, The Sims 4; @newzooMostPopularPC2023].
+
+### Conclusion 
+
+By investigating player experiences during natural play of a popular and commercially available game, we found strong evidence for a small positive change in mood over the course of a play session. Our findings invite further research into the mechanisms governing who experiences the larger impacts of video game play on mood, which likely includes both psychological factors and in-game behavior.
+
+## Author notes
+
+### Data and Material Availability
+
+The data and code we used to analyze it are available on GitHub (<https://github.com/digital-wellbeing/pws-prepost>) and archived at Zenodo (). Outputs of the computational notebooks are at (). For the full PWS dataset, see @vuorreIntensiveLongitudinalDataset2023.
+
+### Author contributions 
+
+Conceptualization: MV, AKP\
+Data Curation: MV, KM\
+Formal Analysis: MV, KM\
+Funding Acquisition: AKP, MV, KM\
+Methodology: MV, KM\
+Project Administration: MV, AKP\
+Resources: AKP, MV\
+Supervision: AKP, MV\
+Validation: KM, MV\
+Visualization: MV, KM\
+Writing – Original Draft: NB, MV, TH, AKP, KM\
+Writing – Review & Editing: MV, NB, AKP, KM\
+
+### Declaration of Conflicting Interests 
+
+The data used in this article derives from @vuorreIntensiveLongitudinalDataset2023, which is co-authored by three members of the current research team (MV, KM, AKP) and a FuturLab employee (JB) who collaboratively created the dataset. FuturLab had no role in the conceptualization, conduct, or publication of the research presented here. The authors perceive no other conflicts of interest with respect to the research, authorship, and/or publication of this article.
+
+### Funding 
+
+This research was supported by Huo Family Foundation and the ESRC (ES/W012626/1). KM was supported by Forskningsrådet för hälsa, arbetsliv och välfärd (2021- 01284). 
+
+# References 
+
+::: {#refs}
+:::

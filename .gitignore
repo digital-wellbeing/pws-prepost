@@ -8,6 +8,8 @@ data/
 *.pdf
 *.html
 *.docx
+*.log
+*.tex
 *_cache/
 *_files/
 models/
