@@ -36,12 +36,12 @@ csl: apa.csl
 floatsintext: yes
 linenumbers: no
 draft: no
-mask: no
+mask: yes
 figurelist: no
 tablelist: no
 footnotelist: no
 documentclass: apa7
-classoption: jou
+classoption: doc
 output: 
   papaja::apa6_pdf:
     number_sections: false
@@ -74,11 +74,9 @@ source("R/common.R")
 dir.create("models", FALSE)
 ```
 
-# Introduction
-
 How do video games affect players' well-being? Games are often studied for their potential in catalyzing psychological change over timescales spanning from weeks to months [e.g., effects on school performance, depression, or life satisfaction, @sauterSocialContextGaming2021; @vuorreTimeSpentPlaying2022], and the surrounding public debate has typically focused on play's far-reaching consequences on players' mental health, social attitudes, or cognitive development [@fergusonDoesSexualizationVideo2022; @hilgardOverestimationActionGameTraining2019; @mathurFindingCommonGround2019]. In stark contrast, typical play appears to be motivated by short-term goals, such as wanting to unwind after a long day, escape to a pleasant non-reality in the moment, or engage in uplifting social interaction over periods of hours [@bourgonjonPlayersPerspectivesPositive2016; @kahnTrojanPlayerTypology2015; @stensengAreThereTwo2021]. Such short-term dynamics between play and affect can exist but need not necessarily accumulate into long-term impacts. For example, games might provide relief, relaxation, and brief improvements in mood over several hours [@riegerEatingGhostsUnderlying2015; @russonielloEffectivenessCasualVideo2009; @tyackRestorativePlayVideogames2020], after which the effects taper out as individuals return to their baseline moods.
 
-Understanding whether and when games' short-term effects emerge is critical for establishing games' potential for mood-related interventions, as well as for building a theoretical foundation for repeated short-term gaming experiences' long-term effects on mental health. At present, however, the prevalence and magnitude of these short-term effects remains poorly understood. Some existing evidence suggests that games can provide short-term boosts to well-being ["mood repair"; @bowmanMoodGameSelective2015; @tyackRestorativePlayVideogames2020], possibly to a greater extent than non-interactive media such as videos [@riegerEatingGhostsUnderlying2015]. On the other hand, games might affect players negatively: Frustrating gaming experiences, for example, can lead to negative consequences such as immediate post-play aggression [@przybylskiCompetenceimpedingElectronicGames2014]. 
+Understanding whether and when games' short-term effects emerge is critical for establishing games' potential for mood-related interventions, as well as for building a theoretical foundation for repeated short-term gaming experiences' long-term effects on mental health. At present, however, the prevalence and magnitude of these short-term effects remains poorly understood. Some existing evidence suggests that games can provide short-term boosts to well-being ["mood repair", @bowmanMoodGameSelective2015; @tyackRestorativePlayVideogames2020], possibly to a greater extent than non-interactive media such as videos [@riegerEatingGhostsUnderlying2015]. On the other hand, games might affect players negatively: Frustrating gaming experiences, for example, can lead to negative consequences such as immediate post-play aggression [@przybylskiCompetenceimpedingElectronicGames2014]. 
 
 Despite the above examples, the validity and generalizability of research on games' short-term affective effects remains limited by three challenges. First, a substantial portion of gameplay research has relied on artificial stimuli; games created or substantially modified by academic researchers. While such customized games allow for greater experimental control, they are unlikely to reflect actual games' rich complexity [@mcmahanConsiderationsUseCommercial2011]. This issue of the limited ecological validity and generalizability of research stimuli (games) limits current inferences about popularly played games' psychological effects. 
 
@@ -86,7 +84,7 @@ The second challenge is providing an ecologically valid *context* for play. Rese
 
 The third challenge concerns the timescale of effects: How quickly do potential effects emerge, and how long are they sustained? For example, some studies indicate that by the end of a half-hour game session, players may exhibit changes in stress [@russonielloEffectivenessCasualVideo2009], aggressive affect [@przybylskiCompetenceimpedingElectronicGames2014], and vitality [@tyackRestorativePlayVideogames2020]. When and how video games' effects evolve during the initial half-hour remains unclear and difficult to study because researchers are typically unable to ask questions at a sufficient temporal resolution, with notable exceptions of @boweyPredictingBeliefsNPC2021 and @frommelGatheringSelfReportData2021, who used non-player characters to ask questions directly within the game. However, they did not enquire about well-being, leaving it unclear when and how the affective dimensions of play change on short timescales.
 
-Here, we aim to address these three challenges to better understand how real play in natural contexts might predict mood on short timescales. Specifically, we examined an intensive longitudinal dataset from the popular commercially available game PowerWash Simulator [PWS; @vuorreIntensiveLongitudinalDataset2023], which includes mood questions embedded in the game itself, to ask three questions: First, to what extent does mood change from immediately before video game play to during play? Second, hyow heterogeneous are these changes in the population of similar players? And third, how do changes in mood develop over the course of a gaming session?
+Here, we aim to address these three challenges to better understand how real play in natural contexts might predict mood on short timescales. Specifically, we examined an intensive longitudinal dataset from the popular commercially available game PowerWash Simulator [PWS, @vuorreIntensiveLongitudinalDataset2023], which includes mood questions embedded in the game itself, to ask three questions: First, to what extent does mood change from immediately before video game play to during play? Second, hyow heterogeneous are these changes in the population of similar players? And third, how do changes in mood develop over the course of a gaming session?
 
 ## Methods
 
@@ -354,7 +352,7 @@ The study procedures were granted ethical approval by Oxford University's Centra
 
 ### Measures 
 
-We measured mood with a single item: "How are you feeling right now?" [@killingsworthWanderingMindUnhappy2010]. Participants responded using a visual analogue scale (VAS) with endpoints "Very bad" and "Very good" that recorded 1000 possible values, which we rescaled to the unit interval (0-1) for this study. Consequently, our results can also be interpreted on the "[proportion] of maximum possible" scale [POMP; @cohenProblemUnitsCircumstance1999]. While well-being is often studied with multi-item scales to differentiate between dimensions of positive and negative affect, the frequent probing of mental states in this study required a minimally intrusive instrument that would interrupt the participants' play experience as little as possible. Moreover, such single-item assessments have previously been validated and are recommended for intensive longitudinal studies [@songExaminingConcurrentPredictive2022].
+We measured mood with a single item: "How are you feeling right now?" [@killingsworthWanderingMindUnhappy2010]. Participants responded using a visual analogue scale (VAS) with endpoints "Very bad" and "Very good" that recorded 1000 possible values, which we rescaled to the unit interval (0-1) for this study. Consequently, our results can also be interpreted on the "[proportion] of maximum possible" scale [POMP, @cohenProblemUnitsCircumstance1999]. While well-being is often studied with multi-item scales to differentiate between dimensions of positive and negative affect, the frequent probing of mental states in this study required a minimally intrusive instrument that would interrupt the participants' play experience as little as possible. Moreover, such single-item assessments have previously been validated and are recommended for intensive longitudinal studies [@songExaminingConcurrentPredictive2022].
 
 ### Data analysis 
 
@@ -780,7 +778,7 @@ We chose not to use model censoring in these models due to the increased computa
 #| include: true
 #| fig.cap: "Estimated (changes) in mood as a function of session duration. Top: Average mood during a gaming session. Bottom: Change in mood during a session compared to mood at the beginning of a session. Gray ribbons indicate 95\\% confidence bands. We truncated the x-axis at three hours for this figure."
 #| fig-height: 3
-#| fig-width: 5
+#| fig-width: 8
 
 XMAX <- 3
 XOUT <- 100
@@ -947,7 +945,7 @@ abstract: Do video games affect players' well-being? In this case study, we exam
 
 The current study corroborates what qualitative research and reports from video game players around the world have long suggested: People feel good playing games. Specifically, we find that playing a popular commercial video game, PowerWash Simulator, is linked with a small improvement in mood, that this improvement is experienced by `r filter(fit_tbl, variable=="Positive shifts")$resp` of players, and that the bulk of the improvement occurs during the first 15 minutes of play.  
 
-Although the overall magnitude of the estimated change was small (`r filter(fit_tbl, variable=="Difference")$res`), it nevertheless is comparable to mood shifts following other frequent voluntary activities. For example, experience sampling studies of US [@killingsworthWanderingMindUnhappy2010] and Korean [@choiTakingStockHappiness2017] adults indicated that watching television (+2% change compared to an individual's average across all activities), reading (+2%), and shopping (+3%) were associated with smaller mood shifts than we observed in association with PWS. On the other hand, those studies indicated that listening to music (+7–9%), eating or cooking (+8%), taking a walk (+9%), visiting an urban green space [+9–10%; @tostNeuralCorrelatesIndividual2019], exercising (+11%), dating (26.5%), sexual intercourse (+28%), or taking a trip (+30.5%) correlate with greater shifts in well-being.
+Although the overall magnitude of the estimated change was small (`r filter(fit_tbl, variable=="Difference")$res`), it nevertheless is comparable to mood shifts following other frequent voluntary activities. For example, experience sampling studies of US [@killingsworthWanderingMindUnhappy2010] and Korean [@choiTakingStockHappiness2017] adults indicated that watching television (+2% change compared to an individual's average across all activities), reading (+2%), and shopping (+3%) were associated with smaller mood shifts than we observed in association with PWS. On the other hand, those studies indicated that listening to music (+7–9%), eating or cooking (+8%), taking a walk (+9%), visiting an urban green space [+9–10%, @tostNeuralCorrelatesIndividual2019], exercising (+11%), dating (26.5%), sexual intercourse (+28%), or taking a trip (+30.5%) correlate with greater shifts in well-being.
 
 Another interpretation of our result is that although the estimated PWS-play associated mood uplift is small, it is potentially large enough to be subjectively perceived. @anvariUsingAnchorbasedMethods2021 suggest that, on average, people are able to subjectively perceive a change of 2% in well-being on the related PANAS scale. Since our estimate of `r filter(fit_tbl, variable=="Difference")$res` is greater, we tentatively suggest that gaming, on average, is associated with mood uplifts that are large enough to be consciously felt by players.
 
@@ -957,7 +955,7 @@ By examining questionnaire items embedded in the game interface during natural p
 
 Our results highlight at least three important unanswered questions. First, what are the mechanisms driving mood changes associated with video game play? Second, how long do mood changes last after gameplay? Third, under what conditions do the short-term "mood repair" effects of games accumulate and contribute to long-term increases in well-being?
 
-Current theories provide a few candidates regarding mood change mechanisms. Mood management theory [MMT; @zillmannMoodManagementCommunication1988] posits that players choose specific entertainment media as part of a (conscious or subconscious) strategy to regulate valence and arousal and to increase hedonic well-being. Specifically, MMT predicts that when players feel more negative emotions, they are more likely to select games with positive hedonic valence (i.e., games that are generally positive in tone), and that when players are in high arousal states such as anger stress, they are more likely to choose calm and relaxing games with.
+Current theories provide a few candidates regarding mood change mechanisms. Mood management theory [MMT, @zillmannMoodManagementCommunication1988] posits that players choose specific entertainment media as part of a (conscious or subconscious) strategy to regulate valence and arousal and to increase hedonic well-being. Specifically, MMT predicts that when players feel more negative emotions, they are more likely to select games with positive hedonic valence (i.e., games that are generally positive in tone), and that when players are in high arousal states such as anger stress, they are more likely to choose calm and relaxing games with.
 
 PowerWash Simulator provides an ideal case study for mood management theory, in that it is typically described as a low cognitive effort game: Players are known to play semi-idly with only partial focus, or even while consuming other media. As one reviewer writes, "When my brain is tired, or I'm not in the mood to compete or struggle in any way, I grab a power washer" [@marshallPowerWashSimulatorMy2021]. Accordingly, PWS may be especially well-suited for players who are emotionally or cognitively depleted, such as those with persistently low mood [@helsbyBandwidthComesGoes2023]---something that is partially supported by our findings that sessions with lower initial moods were those with larger uplifts during play. Although outside the scope of this study, we believe that the additional telemetry in the PWS dataset [@vuorreIntensiveLongitudinalDataset2023] would be valuable in addressing more nuanced questions regarding MMT.
 
@@ -973,20 +971,20 @@ Moreover, while we have focused on discussing mood changes for the average playe
 
 This study was not an experiment, nor did we employ methods required for rigorous causal inference from observational data, and therefore our results regarding the causal effects of video game play on mood are tentative at best. Without a control condition, we have nothing to compare our results to: We cannot say if the changes in mood observed during PWS play would have occurred with other games, non-game activities, or indeed no activity at all. For example, our results might indicate mood increases that are accounted for by starting a period of leisure time, and not play specifically. Future work should consider the use of randomized controlled trials to evaluate the effect of playing PowerWash simulator or other games compared to other leisure activities or therapeutic interventions.
 
-As always, the results here are likely to generalize in some ways but not in others. Our sample is somewhat representative with regard to gender and covers a wide age range roughly in line with the age demographics of general US adult video game players [@engelstatterVideoGamesBecome2022], suggesting that our results may generalize to other adult PWS players from Western countries. They are less likely to generalize to younger players and those from non-Western countries. The sample may further suffer from self-selection bias: Given that players voluntarily chose to download the PWS research edition, it is plausible that people who felt more positively toward the game (and more positively while playing it) were more likely to opt into the study. Finally, we studied just one commercial video game with a feature set that is very different from today's most commonly-played PC games [which at the time of writing include, for example, Minecraft, Fortnite, and Baldur's Gate 3, but only one other simulation game, The Sims 4; @newzooMostPopularPC2023].
+As always, the results here are likely to generalize in some ways but not in others. Our sample is somewhat representative with regard to gender and covers a wide age range roughly in line with the age demographics of general US adult video game players [@engelstatterVideoGamesBecome2022], suggesting that our results may generalize to other adult PWS players from Western countries. They are less likely to generalize to younger players and those from non-Western countries. The sample may further suffer from self-selection bias: Given that players voluntarily chose to download the PWS research edition, it is plausible that people who felt more positively toward the game (and more positively while playing it) were more likely to opt into the study. Finally, we studied just one commercial video game with a feature set that is very different from today's most commonly-played PC games [which at the time of writing include, for example, Minecraft, Fortnite, and Baldur's Gate 3, but only one other simulation game, The Sims 4, @newzooMostPopularPC2023].
 
 ### Conclusion 
 
 By investigating player experiences during natural play of a popular and commercially available game, we found strong evidence for a small positive change in mood over the course of a play session. Our findings invite further research into the mechanisms governing who experiences the larger impacts of video game play on mood, which likely includes both psychological factors and in-game behavior.
 
-## Author notes
+# References 
 
-### Data and Material Availability
+::: {#refs}
+:::
 
-The data and code we used to analyze it are available on GitHub (<https://github.com/digital-wellbeing/pws-prepost>) and archived at Zenodo (). Outputs of the computational notebooks are at (). For the full PWS dataset, see @vuorreIntensiveLongitudinalDataset2023.
+# Contributions 
 
-### Author contributions 
-
+\noindent
 Conceptualization: MV, AKP\
 Data Curation: MV, KM\
 Formal Analysis: MV, KM\
@@ -998,17 +996,30 @@ Supervision: AKP, MV\
 Validation: KM, MV\
 Visualization: MV, KM\
 Writing – Original Draft: NB, MV, TH, AKP, KM\
-Writing – Review & Editing: MV, NB, AKP, KM\
+Writing – Review & Editing: MV, NB, TH, AKP, KM\
 
-### Declaration of Conflicting Interests 
-
-The data used in this article derives from @vuorreIntensiveLongitudinalDataset2023, which is co-authored by three members of the current research team (MV, KM, AKP) and a FuturLab employee (JB) who collaboratively created the dataset. FuturLab had no role in the conceptualization, conduct, or publication of the research presented here. The authors perceive no other conflicts of interest with respect to the research, authorship, and/or publication of this article.
-
-### Funding 
+# Funding information
 
 This research was supported by Huo Family Foundation and the ESRC (ES/W012626/1). KM was supported by Forskningsrådet för hälsa, arbetsliv och välfärd (2021- 01284). 
 
-# References 
+# Competing interests
 
-::: {#refs}
-:::
+The data used in this article derives from @vuorreIntensiveLongitudinalDataset2023, which is co-authored by three members of the current research team (MV, KM, AKP) and a FuturLab employee (JB) who collaboratively created the dataset. FuturLab had no role in the conceptualization, conduct, or publication of the research presented here. The authors perceive no other conflicts of interest with respect to the research, authorship, and/or publication of this article.
+
+# Data accessibility statement
+
+The data and code we used to analyze it are available on GitHub (<https://github.com/digital-wellbeing/pws-prepost>) and archived at Zenodo (). Outputs of the computational notebooks are at (). For the full PWS dataset, see @vuorreIntensiveLongitudinalDataset2023.
+
+# Figure titles and legends
+
+## Figure 1. 
+
+A. Scatterplots of three participants' (rows) mood responses (pre-play: red; during play: blue) over eight sessions' (columns) durations. B. Histograms of session-mean (C. person-mean) moods before (top) and during (bottom) play sessions. D. Differences in session-mean (E. player-mean) mood differences (during session - pre-play). F. Scatterplot of person-mean mood reports at the beginning (x-axis) and during gameplay sessions (y-axis). Identity line is shown in green, and an exploratory GAM regression line is shown in blue.
+
+## Figure 2.
+
+Estimated (changes) in mood as a function of session duration. Top: Average mood during a gaming session. Bottom: Change in mood during a session compared to mood at the beginning of a session. Gray ribbons indicate 95\\% confidence bands. We truncated the x-axis at three hours for this figure.
+
+## Figure 3.
+
+Estimated (changes) in mood as a function of session duration and pre-play mood. Top. Mood for the average player during a gaming session with pre-play mood at 5th, 25th, 50th, and 75th percentiles (columns). Ribbons indicate 95\\% confidence. Bottom. Same as above but with change in mood on the y-axis.
