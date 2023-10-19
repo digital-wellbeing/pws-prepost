@@ -1008,7 +1008,7 @@ The data used in this article derives from @vuorreIntensiveLongitudinalDataset20
 
 # Data accessibility statement
 
-The data and code we used to analyze it are available on GitHub (<https://github.com/digital-wellbeing/pws-prepost>) and archived at Zenodo (). Outputs of the computational notebooks are at (). For the full PWS dataset, see @vuorreIntensiveLongitudinalDataset2023.
+The data and code we used to analyze it are available on GitHub (<https://github.com/digital-wellbeing/pws-prepost>) and archived at Zenodo (<https://zenodo.org/doi/10.5281/zenodo.10021014>). For the full PWS dataset, see @vuorreIntensiveLongitudinalDataset2023.
 
 # Figure titles and legends
 
@@ -1018,8 +1018,8 @@ A. Scatterplots of three participants' (rows) mood responses (pre-play: red; dur
 
 ## Figure 2.
 
-Estimated (changes) in mood as a function of session duration. Top: Average mood during a gaming session. Bottom: Change in mood during a session compared to mood at the beginning of a session. Gray ribbons indicate 95\\% confidence bands. We truncated the x-axis at three hours for this figure.
+Estimated (changes) in mood as a function of session duration. Top: Average mood during a gaming session. Bottom: Change in mood during a session compared to mood at the beginning of a session. Gray ribbons indicate 95\% confidence bands. We truncated the x-axis at three hours for this figure.
 
 ## Figure 3.
 
-Estimated (changes) in mood as a function of session duration and pre-play mood. Top. Mood for the average player during a gaming session with pre-play mood at 5th, 25th, 50th, and 75th percentiles (columns). Ribbons indicate 95\\% confidence. Bottom. Same as above but with change in mood on the y-axis.
+Estimated (changes) in mood as a function of session duration and pre-play mood. Top. Mood for the average player during a gaming session with pre-play mood at 5th, 25th, 50th, and 75th percentiles (columns). Ribbons indicate 95\% confidence. Bottom. Same as above but with change in mood on the y-axis.
