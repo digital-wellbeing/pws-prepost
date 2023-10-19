@@ -1,4 +1,14 @@
-[This repository](https://github.com/digital-wellbeing/pws-data) contains the data and code described in our manuscript, and is readable at <https://digital-wellbeing.github.io/pws-prepost/>.
+Affective Uplift During Video Game Play: A Naturalistic Case Study
+
+[This repository](https://github.com/digital-wellbeing/pws-data) contains the data and code described in our manuscript.
+
+Authors:
+
+- Matti Vuorre (mjvuorre@uvt.nl) 
+- Nick Ballou (joint first author)
+- Thomas Hakman
+- Kristoffer Magnusson
+- Andrew K. Przybylski
 
 ## Data 
 
