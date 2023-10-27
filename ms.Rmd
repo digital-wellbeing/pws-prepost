@@ -73,6 +73,11 @@ source("R/functions.R")
 source("R/common.R")
 
 dir.create("models", FALSE)
+
+knitr::opts_chunk$set(
+  fig.width = 8,
+  fig.asp = 0.618
+)
 ```
 
 How do video games affect players' well-being? Games are often studied for their potential in catalyzing psychological change over timescales spanning from weeks to months [e.g., effects on school performance, depression, or life satisfaction, @sauterSocialContextGaming2021; @vuorreTimeSpentPlaying2022], and the surrounding public debate has typically focused on play's far-reaching consequences on players' mental health, social attitudes, or cognitive development [@fergusonDoesSexualizationVideo2022; @hilgardOverestimationActionGameTraining2019; @mathurFindingCommonGround2019]. In stark contrast, typical play appears to be motivated by short-term goals, such as wanting to unwind after a long day, escape to a pleasant non-reality in the moment, or engage in uplifting social interaction over periods of hours [@bourgonjonPlayersPerspectivesPositive2016; @kahnTrojanPlayerTypology2015; @stensengAreThereTwo2021]. Such short-term dynamics between play and affect can exist but need not necessarily accumulate into long-term impacts. For example, games might provide relief, relaxation, and brief improvements in mood over several hours [@riegerEatingGhostsUnderlying2015; @russonielloEffectivenessCasualVideo2009; @tyackRestorativePlayVideogames2020], after which the effects taper out as individuals return to their baseline moods.
@@ -181,7 +186,7 @@ dat_sum <- dat |>
 ```{r}
 #| label: fig-session-durations
 #| include: false
-#| fig-height: 3
+#| fig.asp: 0.5
 #| fig.cap: Summaries of session durations. X-axes are truncated at 10 hours.
 
 p_durations <- dat |>
@@ -404,7 +409,6 @@ pairs(
 ```{r}
 #| label: fig-descriptives
 #| fig-height: 2.2
-#| fig-width: 7
 #| include: false
 #| fig.cap: 'A. Histogram of session durations (note log10 x-axis). B. Summary of how many sessions each participant completed. C. Histogram of all mood ratings.'
 
@@ -481,8 +485,6 @@ The median session duration was `r tmp[[1]]` hours [10 and 90 percentiles]; the 
 ```{r}
 #| label: fig-data
 #| include: true
-#| fig-width: 8
-#| fig-height: 5
 #| fig.env: "figure*"
 #| fig.cap: "A. Scatterplots of three participants' (rows) mood responses (pre-play: red; during play: blue) over eight sessions' (columns) durations. B. Histograms of session-mean (C. person-mean) moods before (top) and during (bottom) play sessions. D. Differences in session-mean (E. player-mean) mood differences (during session - pre-play). F. Scatterplot of person-mean mood reports at the beginning (x-axis) and during gameplay sessions (y-axis). Identity line is shown in green, and an exploratory GAM regression line is shown in blue."
 
@@ -527,6 +529,8 @@ p_mood_example <- dat_example_sessions |>
   scale_y_continuous(
     "Mood",
     limits = c(0, 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+    labels = c("0", "", "0.5", "", "1")
   ) +
   geom_point(size = 1.5, alpha = 1) +
   facet_grid(
@@ -551,12 +555,12 @@ p_mood_prepost_raw <- dat |>
   geom_histogram(bins = 30, col = "white") +
   scale_y_continuous(
     "Observations",
-    expand = expansion(c(0.001, 0.1)),
+    expand = expansion(c(0.01, 0.1)),
     breaks = scales::extended_breaks(5)
   ) +
   scale_x_continuous(
     "Mood",
-    expand = expansion(c(0.001))
+    expand = expansion(c(0.01))
   ) +
   facet_wrap("post", ncol = 1, scales = "free_y") +
   theme(legend.position = "none")
@@ -569,7 +573,7 @@ p_mood_prepost_sessions <- p_mood_prepost_raw %+%
   ) +
   scale_y_continuous(
     "Sessions",
-    expand = expansion(c(0.001, 0.1)),
+    expand = expansion(c(0.01, 0.1)),
     breaks = scales::extended_breaks(5)
   )
 
@@ -581,7 +585,7 @@ p_mood_prepost_players <- p_mood_prepost_sessions %+%
   ) +
   scale_y_continuous(
     "Players",
-    expand = expansion(c(0.001, 0.1)),
+    expand = expansion(c(0.01, 0.1)),
     breaks = scales::extended_breaks(5)
   )
 
@@ -595,10 +599,10 @@ p_mood_difference_sessions <- p_mood_prepost_sessions$data |>
   geom_vline(xintercept = 0, linewidth = .5, col = "#2ca25f") +
   scale_y_continuous(
     "Sessions",
-    expand = expansion(c(0.001, 0.1))
+    expand = expansion(c(0.01, 0.1))
   ) +
   scale_x_continuous(
-    expand = expansion(c(0.001))
+    expand = expansion(c(0.01))
   ) +
   coord_cartesian(xlim = c(-.4, .6))
 
@@ -612,10 +616,10 @@ p_mood_difference_players <- p_mood_prepost_players$data |>
   geom_vline(xintercept = 0, linewidth = .5, col = "#2ca25f") +
   scale_y_continuous(
     "Players",
-    expand = expansion(c(0.001, 0.1))
+    expand = expansion(c(0.01, 0.1))
   ) +
   scale_x_continuous(
-    expand = expansion(c(0.001))
+    expand = expansion(c(0.01))
   ) +
   coord_cartesian(xlim = c(-.4, .6))
 
@@ -777,9 +781,8 @@ We chose not to use model censoring in these models due to the increased computa
 ```{r}
 #| label: fig-ct1
 #| include: true
+#| fig.width: 4
 #| fig.cap: "Estimated (changes) in mood as a function of session duration. Top: Average mood during a gaming session. Bottom: Change in mood during a session compared to mood at the beginning of a session. Gray ribbons indicate 95\\% confidence bands. We truncated the x-axis at three hours for this figure."
-#| fig-height: 3
-#| fig-width: 5
 
 XMAX <- 3
 XOUT <- 100
@@ -857,9 +860,8 @@ bind_rows(
 #| label: fig-ct2
 #| fig.env: "figure*"
 #| include: true
+#| fig.asp: 0.5
 #| fig.cap: "Estimated (changes) in mood as a function of session duration and pre-play mood. Top. Mood for the average player during a gaming session with pre-play mood at 5th, 25th, 50th, and 75th percentiles (columns). Ribbons indicate 95\\% confidence. Bottom. Same as above but with change in mood on the y-axis."
-#| fig-height: 3
-#| fig-width: 8
 
 pre <- dat_pre |>
   summarise(pre = pre[1], .by = ps) |>
