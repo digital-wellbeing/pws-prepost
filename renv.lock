@@ -1,6 +1,6 @@
 {
   "R": {
-    "Version": "4.3.1",
+    "Version": "4.3.2",
     "Repositories": [
       {
         "Name": "CRAN",
@@ -1433,33 +1433,6 @@
       ],
       "Hash": "60885b9f746c9dfaef110d070b5f7dc0"
     },
-    "koRpus": {
-      "Package": "koRpus",
-      "Version": "0.13-8",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "Matrix",
-        "R",
-        "data.table",
-        "methods",
-        "sylly"
-      ],
-      "Hash": "ca7f1c23a900deface718333b652824f"
-    },
-    "koRpus.lang.en": {
-      "Package": "koRpus.lang.en",
-      "Version": "0.1-4",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "R",
-        "koRpus",
-        "methods",
-        "sylly.en"
-      ],
-      "Hash": "911ceaaa2facebe24eb246663bb5165b"
-    },
     "labeling": {
       "Package": "labeling",
       "Version": "0.4.3",
@@ -2507,28 +2480,6 @@
       ],
       "Hash": "b8e943d262c3da0b0febd3e04517c197"
     },
-    "sylly": {
-      "Package": "sylly",
-      "Version": "0.1-6",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "R",
-        "methods"
-      ],
-      "Hash": "ad4955c417c7b109a409898e50b8a02c"
-    },
-    "sylly.en": {
-      "Package": "sylly.en",
-      "Version": "0.1-3",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "R",
-        "sylly"
-      ],
-      "Hash": "f1209ba13858a8da5712764e8613dc22"
-    },
     "sys": {
       "Package": "sys",
       "Version": "3.4.2",
@@ -2856,31 +2807,6 @@
         "stats"
       ],
       "Hash": "c0e49a9760983e81e55cdd9be92e7182"
-    },
-    "wordcountaddin": {
-      "Package": "wordcountaddin",
-      "Version": "0.3.0.9000",
-      "Source": "GitHub",
-      "RemoteType": "github",
-      "RemoteHost": "api.github.com",
-      "RemoteUsername": "benmarwick",
-      "RemoteRepo": "wordcountaddin",
-      "RemoteRef": "master",
-      "RemoteSha": "e075baa9daf4530898e27270d1512d744378cd29",
-      "Requirements": [
-        "fs",
-        "knitr",
-        "koRpus",
-        "koRpus.lang.en",
-        "miniUI",
-        "purrr",
-        "rstudioapi",
-        "shiny",
-        "stringi",
-        "sylly",
-        "sylly.en"
-      ],
-      "Hash": "a3025ca597cda86986608c3d8bbea817"
     },
     "xfun": {
       "Package": "xfun",
