@@ -30,7 +30,7 @@ authornote: |
   
   *MV and NB contributed equally to this work.
   
-wordcount: '`r scales::number(wordcountaddin:::word_count("ms.Rmd"), big.mark = ",")`'
+wordcount: "4,802"
 bibliography: references.bib
 keywords: "video games, well-being, mood, play behavior, telemetry"
 csl: apa.csl
@@ -44,11 +44,11 @@ footnotelist: no
 documentclass: apa7
 classoption: jou
 output: 
+  papaja::apa6_docx: 
+    number_sections: false
   papaja::apa6_pdf:
     number_sections: false
     keep_tex: true
-  papaja::apa6_docx: 
-    number_sections: false
 editor_options: 
   chunk_output_type: console
 ---
@@ -72,9 +72,14 @@ library(tidyverse)
 source("R/functions.R")
 source("R/common.R")
 
+# Output and temporary files
 dir.create("models", FALSE)
+dir.create("data", FALSE)
 
+# Document options
 knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
   fig.width = 8,
   fig.asp = 0.618
 )
@@ -99,7 +104,7 @@ The second challenge is providing an ecologically valid *context* for play. Rese
 
 The third challenge concerns the timescale of effects: How quickly do potential effects emerge, and how long are they sustained? For example, some studies indicate that by the end of a half-hour game session, players may exhibit changes in stress [@russonielloEffectivenessCasualVideo2009], aggressive affect [@przybylskiCompetenceimpedingElectronicGames2014], and vitality [@tyackRestorativePlayVideogames2020]. When and how video games' effects evolve during the initial half-hour remains unclear and difficult to study because researchers are typically unable to ask questions at a sufficient temporal resolution, with notable exceptions of @boweyPredictingBeliefsNPC2021 and @frommelGatheringSelfReportData2021, who used non-player characters to ask questions directly within the game. However, they did not enquire about well-being, leaving it unclear when and how the affective dimensions of play change on short timescales.
 
-Here, we aim to address these three challenges to better understand how real play in natural contexts might predict mood on short timescales. Specifically, we examined an intensive longitudinal dataset from the popular commercially available game PowerWash Simulator [PWS, @vuorreIntensiveLongitudinalDataset2023], which includes mood questions embedded in the game itself, to ask three questions: First, to what extent does mood change from immediately before video game play to during play? Second, hyow heterogeneous are these changes in the population of similar players? And third, how do changes in mood develop over the course of a gaming session?
+Here, we aim to address these three challenges to better understand how real play in natural contexts might predict mood on short timescales. Specifically, we examined an intensive longitudinal dataset from the popular commercially available game PowerWash Simulator [PWS, @vuorreIntensiveLongitudinalDataset2023], which includes mood questions embedded in the game itself, to ask three questions: First, to what extent does mood change from immediately before video game play to during play? Second, how heterogeneous are these changes in the population of similar players? And third, how do changes in mood develop over the course of a gaming session?
 
 ## Methods
 
@@ -316,7 +321,6 @@ dat |>
 contrasts(dat$post) <- c(-0.5, 0.5)
 
 # Write data for any supplementary notebooks
-dir.create("data", FALSE)
 write_rds(dat, "data/data.rds")
 ```
 
@@ -361,7 +365,7 @@ country <- count(demo, country, sort = TRUE) |>
   knitr::combine_words()
 ```
 
-The characteristics of the full sample of 11,080 players in the PWS dataset are described in @vuorreIntensiveLongitudinalDataset2023; here, we describe the subset of data relevant to our questions (see Data analysis below). All participants were over 18 years old, provided informed consent, answered at least one mood question, and did not request their data to be deleted. The median age was `r age`, and the four most frequent gender responses were `r gender`. Participants played in `r n_country` countries, with the `r country` being the most represented. Recruitment happened in multiple waves through multiple avenues inside and outside of the game [@vuorreIntensiveLongitudinalDataset2023]. Study participation was incentivized through cosmetic in-game rewards (e.g. item skins). For every 12 questions answered, players could unlock a reward, of which five were available. These rewards could only be unlocked in the research version but were usable in both the research and main versions of PWS. 
+After downloading the PWS research edition and starting the game for the first time, but before entering the game menu, participants gave informed consent, confirmed that they were 18 years old or older, and answered optional demographic questions. The characteristics of the full sample of 11,080 players in the PWS dataset are described in @vuorreIntensiveLongitudinalDataset2023; here, we describe the subset of data relevant to our questions (see Data analysis below). All participants were over 18 years old, provided informed consent, answered at least one mood question, and did not request their data to be deleted. The median age was `r age`, and the four most frequent gender responses were `r gender`. Participants played in `r n_country` countries, with the `r country` being the most represented. Recruitment happened in multiple waves through multiple avenues inside and outside of the game [@vuorreIntensiveLongitudinalDataset2023]. Study participation was incentivized through cosmetic in-game rewards (e.g. item skins). For every 12 questions answered, players could unlock a reward, of which five were available. These rewards could only be unlocked in the research version but were usable in both the research and main versions of PWS. 
 
 The study procedures were granted ethical approval by Oxford University's Central University Research Ethics Committee (SSH_OII_CIA_21_011). 
 
@@ -373,11 +377,46 @@ We measured mood with a single item: "How are you feeling right now?" [@killings
 
 For the analyses reported here, we used a subset of the data in @vuorreIntensiveLongitudinalDataset2023 that was relevant to our questions. The full dataset contains `r number2(filter(dat_sum, when=="raw")$n_obs)` in-game survey responses, but here we ignored the enjoyment, focus, autonomy, competence, and immersion items and focused on the `r number2(filter(dat_sum, when=="mood")$n_obs)` mood responses from `r number2(filter(dat_sum, when=="mood")$n_session)` sessions and `r number2(filter(dat_sum, when=="mood")$n_pid)` players. We then excluded sessions longer than 5 hours in duration (`r percent2(1 - filter(dat_sum, when=="5h")$n_session / filter(dat_sum, when=="mood")$n_session)`) and dropped all responses with missing values (`r percent2(1 - filter(dat_sum, when=="non-na")$n_session / filter(dat_sum, when=="5h")$n_session)`). We made these decisions to reduce the complexity of our anticipated models, and under the belief that very long sessions are likely to be qualitatively different, and very rare, compared to typically shorter sessions. Our final dataset consisted of `r number2(filter(dat_sum, when=="non-na")$n_obs)` mood responses from `r number2(filter(dat_sum, when=="non-na")$n_session)` sessions and `r number2(filter(dat_sum, when=="non-na")$n_pid)` players.
 
-Our first and main research question concerned the difference between players' moods at the beginning of each session (pre-play) and during the subsequent play session (during play). This contrast does not represent a causal hypothesis: Players could begin (and end) their play sessions for whatever reason, and these reasons are likely to confound the pre – during contrast. For example, a player might come home after a stressful day at work and then play PWS. Coming home from a stressful work environment might then cause the person to both (1) choose to play, and (2) experience an elevated mood, in which case we would be in error if we attributed play itself the position of causal antecedent of any potential mood consequences. Generally, reasons for starting to play are likely to contribute to the pre-during contrast and we are unable to disentangle those from any changes specifically caused by play.
+Our first and main research question concerned the difference between players' moods at the beginning of each session (pre-play) and during the subsequent play session (during play). This contrast does not represent a causal hypothesis (see Limitations, below): Players could begin (and end) their play sessions for whatever reason, and these reasons are likely to confound the pre – during contrast. For example, a player might come home after a stressful day at work and then play PWS. Coming home from a stressful work environment might then cause the person to both (1) choose to play, and (2) experience an elevated mood, in which case we would be in error if we attributed play itself the position of causal antecedent of any potential mood consequences. Generally, reasons for starting to play are likely to contribute to the pre-during contrast and we are unable to disentangle those from any changes specifically caused by play.
 
-We estimated this contrast within a three-level hierarchical regression model that nested observations within sessions, and sessions within players. We specified a censored Gaussian model of mood because a VAS necessarily limits response options at the lower and upper ends. Ignoring censoring would leave the contrast susceptible to ceiling or floor effects and might confound changes in the mood distribution's location with changes in its scale. We then modelled mean mood on an intercept and contrast coded time (pre-play: -0.5; during play: 0.5) and allowed both parameters to vary randomly across players. In addition, we modelled random intercepts over player sessions. Although equal residual variances across people in natural observation seem unlikely, we estimated only one residual deviation parameter to limit model complexity. 
+```{r}
+#| include: false
 
-We analyzed the data with R and used the brms package to estimate, via Stan's HMC sampling algorithm, and post-process the models [@burknerBrmsPackageBayesian2017; @rcoreteamLanguageEnvironmentStatistical2023; @standevelopmentteamStanModelingLanguage2021]. We drew `r number2(N_ITER*4/2)` samples from the model's posterior distribution using brms' default prior distributions on all parameters and used numerical and graphical checks to ensure model convergence and adequacy.
+# How many sessions per player
+dat |> 
+  count(pid, session) |> 
+  count(pid) |> 
+  summarise(median(n))
+
+# How many data per session
+dat |> 
+  count(ps) |> 
+  summarise(median(n))
+```
+
+We estimated this contrast within a three-level hierarchical regression model that nested observations within sessions, and sessions within players. We decided this three-level hierarchy as most appropriate, because individuals typically contributed data over many sessions (the median player contributed five sessions' data), and sessions typically had multiple observations (the median session included two observations). More formally, then, we modelled the mood report of the $i^{th}$ observation, of the $j^{th}$ person's $k^{th}$ session as censored-normal distributed with a common variance using the following equations 
+
+\begin{align*}
+\text{mood}_{ijk} &\sim \text{CensNorm}^{[0, 1]}(\beta_{0jk} + \beta_{1j}\text{during}_{ijk}, \sigma^2), \\
+\beta_{0j} &= \gamma_0 + u_{0j} + v_{0k}, \\
+\beta_{1j} &= \gamma_1 + u_{1j}, \\
+\begin{bmatrix}
+  u_{0j} \\ u_{1j}
+\end{bmatrix} &\sim \text{MVN}\left(
+  \begin{bmatrix}
+    0 \\ 0
+  \end{bmatrix},
+  \begin{pmatrix}
+    \tau_{0} \ & \\ 
+    \rho_{01} \ &\tau_{1}
+  \end{pmatrix}
+\right), \\
+v_{0k} &\sim \text{Normal}\left(0, \kappa_{0}\right)
+\end{align*}
+
+We specified a censored (at 0 and 1) Gaussian model of mood because a VAS necessarily limits response options at the lower and upper ends. Ignoring censoring would leave the contrast susceptible to ceiling or floor effects and might confound changes in the mood distribution's location with changes in its scale. We then modelled mean mood on an intercept and a coefficient of *during* play (coded as pre-play: -0.5; during play: 0.5) and allowed both parameters to vary randomly across players ($u_{0j}$ and $u_{1j}$). Thus, to answer RQ2, we could examine $\tau_1$, describing the variability of individuals' mood changes around the mean mood change ($\gamma_1$). In addition, we modelled random intercepts over player sessions. Although equal residual variances across people in natural observation seem unlikely, we estimated only one residual deviation parameter to limit model complexity. 
+
+We analyzed the data with R and used the brms package to estimate, via Stan's HMC sampling algorithm, and post-process the models [@burknerBrmsPackageBayesian2017; @rcoreteamLanguageEnvironmentStatistical2023; @standevelopmentteamStanModelingLanguage2021]. These probabilistic methods are especially helpful for complex models where some variance parameters might be small---as we anticipated here for the session-level variances. We drew `r number2(N_ITER*4/2)` samples from the model's posterior distribution using brms' default prior distributions on all parameters and used numerical and graphical checks to ensure model convergence and adequacy.
 
 ```{r}
 #| label: model-1-brms
@@ -740,13 +779,13 @@ We then turned to the model's results regarding (differences) in players' moods.
 
 ### RQ2: Heterogeneity in mood changes 
 
-Although the above quantities indicated that the average player's mood did increase from before to during play, they say little about the robustness of this difference in the population of similar players. We therefore next turned to our second research question: How heterogeneous are mood shifts in the population of similar PWS players? First, the standard deviation of the person-specific mood differences was `r filter(fit_tbl, variable=="(SD) Difference")$res`. In comparison to the average person's estimated difference (`r filter(fit_tbl, variable=="Difference")$res`), that quantity indicated a moderate degree of heterogeneity between individuals. More specifically, the model-predicted proportion of individuals expected to experience positive changes from pre- to during play was `r filter(fit_tbl, variable=="Positive shifts")$resp`. 
+Above, we estimated that the average player's mood increased by approximately `r filter(fit_tbl, variable=="Difference")$res` units (on a 0-1 scale) from the beginning of the session to during play. However, that number does not indicate how representative this "average player" is. In other words, we do not know how variable this mood increase is likely to be in the population of similar players. We therefore next turned to our second research question: How heterogeneous are mood shifts in the population of similar PWS players? As a first approximation to an answer, we looked at the model's standard deviation of the person-specific mood increases. It was `r filter(fit_tbl, variable=="(SD) Difference")$res`. In comparison to the average person's estimated difference, that quantity indicated a moderate degree of heterogeneity between individuals. To give a more concrete quantity describing heterogeneity in this mood uplift, we then calculated the model-estimated proportion of individuals in this population who are expected to experience positive mood changes from pre- to during play. This proportion was `r filter(fit_tbl, variable=="Positive shifts")$resp`: Nearly three quarters of individuals are predicted to experience mood lifts during PWS play.
 
-In sum, the results from our model contrasting pre- and during play moods indicated small increases in mood during play, and that those changes were robust across people.
+In sum, the results from our model contrasting pre- and during play moods indicated small increases in mood during play, and that those changes were somewhat robust across people.
 
 ### RQ3: Time course of mood changes during play 
 
-The above analysis provides an easily interpretable contrast between during-play moods and moods just before play. However, it does not address the time course of moods *within* the sessions. We therefore next turned to our third question: How do (changes in) players' moods evolve during gameplay sessions? To answer, we used time as a continuous predictor and allowed mood changes during sessions to be non-linear by estimating a piecewise cubic spline with 4 degrees of freedom. Just like the main model, this was a three-level hierarchical model, with random intercepts at the session and participant levels, and random participant slopes for each piece of the spline. Moreover, in a separate model, we also examined how within-session change related to mood before play by including pretest values as a covariate and modeled the hour-by-pretest continuous interaction. We also modeled pretest mood with a cubic spline to allow the relationship to be non-linear.
+The above analysis provides an easily interpretable contrast between during-play moods and moods just before play. However, it does not address the time course of moods *within* the sessions. We therefore next turned to our third question: How do (changes in) players' moods evolve during gameplay sessions? To answer, we used time (hours) as a continuous predictor and allowed mood changes during sessions to be non-linear by estimating a piecewise cubic spline with 4 degrees of freedom using the R package lme4 [@lme4]. Just like the main model, this was a three-level hierarchical model, with random intercepts at the session and participant levels, and random participant slopes for each piece of the spline. Moreover, in a separate model, we also examined how within-session change related to mood before play by including pretest values as a covariate and modeled the hour-by-pretest continuous interaction. We also modeled pretest mood with a cubic spline to allow the relationship to be non-linear.
 
 ```{r}
 #| label: model-2-3-lmer
@@ -983,7 +1022,9 @@ Moreover, while we have focused on discussing mood changes for the average playe
 
 This study was not an experiment, nor did we employ methods required for rigorous causal inference from observational data, and therefore our results regarding the causal effects of video game play on mood are tentative at best. Without a control condition, we have nothing to compare our results to: We cannot say if the changes in mood observed during PWS play would have occurred with other games, non-game activities, or indeed no activity at all. For example, our results might indicate mood increases that are accounted for by starting a period of leisure time, and not play specifically. Future work should consider the use of randomized controlled trials to evaluate the effect of playing PowerWash simulator or other games compared to other leisure activities or therapeutic interventions.
 
-As always, the results here are likely to generalize in some ways but not in others. Our sample is somewhat representative with regard to gender and covers a wide age range roughly in line with the age demographics of general US adult video game players [@engelstatterVideoGamesBecome2022], suggesting that our results may generalize to other adult PWS players from Western countries. They are less likely to generalize to younger players and those from non-Western countries. The sample may further suffer from self-selection bias: Given that players voluntarily chose to download the PWS research edition, it is plausible that people who felt more positively toward the game (and more positively while playing it) were more likely to opt into the study. Finally, we studied just one commercial video game with a feature set that is very different from today's most commonly-played PC games [which at the time of writing include, for example, Minecraft, Fortnite, and Baldur's Gate 3, but only one other simulation game, The Sims 4, @newzooMostPopularPC2023].
+As always, the results here are likely to generalize in some ways but not in others. Our sample is somewhat representative with regard to gender and covers a wide age range roughly in line with the age demographics of general US adult video game players [@engelstatterVideoGamesBecome2022], suggesting that our results may generalize to other adult PWS players from Western countries. They are less likely to generalize to younger players and those from non-Western countries. The sample may further suffer from self-selection bias: Given that players voluntarily chose to download the PWS research edition, it is plausible that people who felt more positively toward the game (and more positively while playing it) were more likely to opt into the study. 
+
+Finally, we studied just one commercial video game with a feature set that is very different from today's most commonly-played PC games [which at the time of writing include, for example, Minecraft, Fortnite, and Baldur's Gate 3, but only one other simulation game, The Sims 4, @newzooMostPopularPC2023]. The fact that we studied only one game---and one that is not likely representative of today's most commonly-played games---suggests caution in generalizing from our findings to other games.
 
 ### Conclusion 
 

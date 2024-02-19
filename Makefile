@@ -1,4 +1,10 @@
-all: ms
+all: pdf docx supp
 
-ms: ms.Rmd
-	Rscript -e 'rmarkdown::render("ms.Rmd", "all")'
+pdf: ms.Rmd
+	Rscript -e 'rmarkdown::render("$<", "papaja::apa6_pdf")'
+
+docx: ms.Rmd
+	Rscript -e 'rmarkdown::render("$<", "papaja::apa6_docx")'
+
+supp:
+	quarto render supplementary.qmd

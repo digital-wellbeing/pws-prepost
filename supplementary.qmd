@@ -1,0 +1,73 @@
+---
+title: "Affective Uplift During Video Game Play"
+subtitle: "Supplementary material"
+format: pdf
+---
+
+```{r}
+#| include: false
+library(patchwork)
+library(tidyverse)
+source("R/common.R")
+dat <- read_rds("data/data.rds")
+```
+
+```{r}
+#| include: false
+p1 <- dat |> 
+  ggplot(aes(mood)) +
+  geom_histogram(
+    col = "white",
+    bins = 50,
+    linewidth = .25,
+    boundary = 0
+  ) +
+  scale_x_continuous(
+    "Mood rating",
+    expand = expansion(c(0.01, 0.01)),
+  ) +
+  scale_y_continuous(
+    "Count",
+    expand = expansion(c(0.001, 0.05)),
+  )
+
+p2 <- p1 %+% 
+  filter(dat, hours == max(hours), .by = ps) +
+  aes(x = hours) +
+  scale_x_continuous(
+    "Session duration (hours)",
+    expand = expansion(c(0.01, 0.01)),
+  )
+
+dat_sum <- dat |> 
+  summarise(
+    hours = max(hours),
+    mood = mean(mood),
+    .by = ps
+  )
+
+p3 <- dat_sum |> 
+  ggplot(aes(hours, mood)) +
+  geom_point(size = 0.33, alpha = 0.25) +
+  scale_x_continuous(
+    "Session duration (hours)",
+    expand = expansion(c(0.01, 0.01)),
+  ) +
+  scale_y_continuous(
+    "Mean mood rating",
+    expand = expansion(c(0.01, 0.01)),
+  ) +
+  theme(aspect.ratio = 1)
+```
+
+```{r}
+#| label: fig-1
+#| fig-cap: Histograms of mood ratings (top left), session durations (top right), and their scatterplot (bottom).
+#| fig.height: 5
+#| echo: false
+#| cache: false
+
+((p1 | p2) / p3) +
+  plot_layout(heights = c(3, 7))
+```
+
