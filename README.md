@@ -1,6 +1,7 @@
 Affective Uplift During Video Game Play: A Naturalistic Case Study
 
-[This repository](https://github.com/digital-wellbeing/pws-data) contains the data and code described in our manuscript.
+- preprint: <https://osf.io/preprints/psyarxiv/z3ejx>
+- [This repository](https://github.com/digital-wellbeing/pws-data) contains the data and code described in our manuscript.
 
 Authors:
 
