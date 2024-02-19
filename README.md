@@ -16,13 +16,9 @@ The data is documented and archived at <https://osf.io/wpeh6/> (<https://psyarxi
 
 ## Reproduce / contribute
 
-The analysis code is written in R. The source code of the manuscript (including all data wrangling and analysis) is in `ms.Rmd`. Reproduce the manuscript with
+The analysis code is written in R. The source code of the manuscript (including all data wrangling and analysis) is in `ms.Rmd`. Reproduce the manuscript by rendering `ms.Rmd`. Note that some computations can take a very long time indeed, depending on computer performance etc.
 
-```bash
-make
-```
-
-To contribute, open an issue and/or send a pull request to the dev branch at <https://github.com/digital-wellbeing/pws-prepost>.
+To contribute, open an issue and/or send a pull request at <https://github.com/digital-wellbeing/pws-prepost>.
 
 ### Build using Docker
 You can also build the project using Docker. [WIP]
