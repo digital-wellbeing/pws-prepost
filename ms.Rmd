@@ -78,6 +78,15 @@ knitr::opts_chunk$set(
   fig.width = 8,
   fig.asp = 0.618
 )
+
+# mcmc settings
+MAX_CORES <- as.numeric(Sys.getenv("N_CORES"), 4)
+N_ITER <- as.numeric(Sys.getenv("N_ITER"), 2000)
+options(
+  brms.backend = Sys.getenv("BRMS_BACKEND", "rstan"), 
+  brms.threads = as.numeric(Sys.getenv("N_THREADS"), 1),
+  mc.cores = MAX_CORES
+)
 ```
 
 How do video games affect players' well-being? Games are often studied for their potential in catalyzing psychological change over timescales spanning from weeks to months [e.g., effects on school performance, depression, or life satisfaction, @sauterSocialContextGaming2021; @vuorreTimeSpentPlaying2022], and the surrounding public debate has typically focused on play's far-reaching consequences on players' mental health, social attitudes, or cognitive development [@fergusonDoesSexualizationVideo2022; @hilgardOverestimationActionGameTraining2019; @mathurFindingCommonGround2019]. In stark contrast, typical play appears to be motivated by short-term goals, such as wanting to unwind after a long day, escape to a pleasant non-reality in the moment, or engage in uplifting social interaction over periods of hours [@bourgonjonPlayersPerspectivesPositive2016; @kahnTrojanPlayerTypology2015; @stensengAreThereTwo2021]. Such short-term dynamics between play and affect can exist but need not necessarily accumulate into long-term impacts. For example, games might provide relief, relaxation, and brief improvements in mood over several hours [@riegerEatingGhostsUnderlying2015; @russonielloEffectivenessCasualVideo2009; @tyackRestorativePlayVideogames2020], after which the effects taper out as individuals return to their baseline moods.

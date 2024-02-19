@@ -1,4 +1,14 @@
+# Number of mcmc iterations
 N_ITER=500
-N_THREADS=2
+
+# Total number of cores to use for mcmc
 N_CORES=4
+
+# brms backend (rstan or cmdstanr)
+BRMS_BACKEND="rstan"
+
+# Number of mcmc threads per chain (note >1 must use cmdstanr above)
+N_THREADS=2
+
+# Analyze a subset of participants?
 #N_SUBSET=100
