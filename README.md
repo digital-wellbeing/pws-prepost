@@ -17,7 +17,12 @@ The data is documented and archived at <https://osf.io/wpeh6/> (<https://psyarxi
 
 ## Reproduce / contribute
 
-The analysis code is written in R. The source code of the manuscript (including all data wrangling and analysis) is in `ms.Rmd`. Reproduce the manuscript by rendering `ms.Rmd`. Note that some computations can take a very long time indeed, depending on computer performance etc.
+The analysis code is written in R. The source code of the manuscript (including all data wrangling and analysis) is in `ms.Rmd`. To reproduce, run [`make`](https://www.gnu.org/software/make/), or
+
+1. Restore the R environment with `renv::restore()`
+2. Render the manuscript with `rmarkdown::render("ms.Rmd")`
+
+Note that some computations can take a very long time indeed, depending on computer performance etc.
 
 To contribute, open an issue and/or send a pull request at <https://github.com/digital-wellbeing/pws-prepost>.
 
