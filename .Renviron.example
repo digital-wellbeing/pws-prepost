@@ -1,5 +1,8 @@
 # Make appropriate to your system and rename to .Renviron
 
+# Where to download the raw data
+PWS_DATA_PATH="data-raw/data.zip"
+
 # Number of mcmc iterations
 N_ITER=500
 
