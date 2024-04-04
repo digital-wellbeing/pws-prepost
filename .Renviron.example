@@ -1,3 +1,5 @@
+# Make appropriate to your system and rename to .Renviron
+
 # Number of mcmc iterations
 N_ITER=500
 
@@ -8,7 +10,7 @@ N_CORES=4
 BRMS_BACKEND="rstan"
 
 # Number of mcmc threads per chain (note >1 must use cmdstanr above)
-N_THREADS=2
+N_THREADS=1
 
-# Analyze a subset of participants?
-#N_SUBSET=100
+# Analyze a subset of participants? (0-1)
+N_SUBSET_PROPORTION=1

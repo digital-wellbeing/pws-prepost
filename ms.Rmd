@@ -142,12 +142,8 @@ dat <- dat |>
     hours = duration / 60,
     .keep = "unused"
   )
-```
 
-```{r}
-#| label: session-indicator-create
-#| include: true
-
+# Create session indicators
 dat <- dat |>
   arrange(pid, time) |>
   mutate(
@@ -165,10 +161,6 @@ dat_sum <- dat |>
     n_session = length(unique(ps)),
     n_obs = n()
   )
-```
-
-```{r}
-#| label: mood-filter
 
 # Include only wellbeing responses that occurred
 # in sessions with both "pre" and "post" measures
@@ -176,6 +168,18 @@ dat <- dat |>
   filter(prompt == "Wellbeing") |>
   select(-prompt)
 
+# Analyze a subset of participants if required 
+# (for testing etc.; be careful)
+dat <- dat |> 
+  filter(
+    pid %in%
+      sample(
+        unique(dat$pid), 
+        size = length(unique(dat$pid)) * N_SUBSET_PROPORTION
+      )
+  )
+
+# Calculate basic data summaries
 dat_sum <- dat |>
   summarize(
     when = "mood",
