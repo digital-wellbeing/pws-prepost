@@ -102,7 +102,7 @@ Here, we aim to address these three challenges to better understand how real pla
 ```{r}
 #| label: data-get
 
-# Download, unzip data from OSF PWS database
+# Download data from OSF PWS database
 PWS_DATA_PATH <- Sys.getenv("PWS_DATA_PATH", unset = "data-raw/data.zip")
 if (!file.exists(PWS_DATA_PATH)) {
   dir.create(
@@ -114,6 +114,10 @@ if (!file.exists(PWS_DATA_PATH)) {
     url = "https://osf.io/download/j48qf/",
     destfile = PWS_DATA_PATH
   )
+}
+
+# unzip required data tables
+if (!file.exists("data/demographics.csv")) {
   dir.create("data", FALSE)
   unzip(
     zipfile = PWS_DATA_PATH,
