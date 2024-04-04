@@ -55,6 +55,7 @@ editor_options:
 #| label: prepare
 #| cache: false
 
+library(papaja)
 library(scales)
 library(cmdstanr)
 library(splines)
@@ -62,8 +63,6 @@ library(emmeans)
 library(posterior)
 library(lme4)
 library(brms)
-library(gt)
-library(ggstance)
 library(ggdist)
 library(patchwork)
 library(tidyverse)
@@ -76,6 +75,7 @@ dir.create("data", FALSE)
 
 # Document options
 knitr::opts_chunk$set(
+  cache = TRUE,
   warning = FALSE,
   message = FALSE,
   fig.width = 8,
@@ -102,17 +102,25 @@ Here, we aim to address these three challenges to better understand how real pla
 ```{r}
 #| label: data-get
 
-# Download, unzip data from OSF PWS database
-path <- "data-raw/data.zip"
-if (!file.exists(path)) {
-  dir.create("data-raw", FALSE)
+# Download data from OSF PWS database
+PWS_DATA_PATH <- Sys.getenv("PWS_DATA_PATH", unset = "data-raw/data.zip")
+if (!file.exists(PWS_DATA_PATH)) {
+  dir.create(
+    dirname(PWS_DATA_PATH), 
+    showWarnings = FALSE, 
+    recursive = TRUE
+  )
   download.file(
     url = "https://osf.io/download/j48qf/",
-    destfile = "data-raw/data.zip"
+    destfile = PWS_DATA_PATH
   )
+}
+
+# unzip required data tables
+if (!file.exists("data/demographics.csv")) {
   dir.create("data", FALSE)
   unzip(
-    zipfile = path,
+    zipfile = PWS_DATA_PATH,
     files = c(
       "data/demographics.csv",
       "data/study_prompt_answered.csv"
@@ -142,12 +150,8 @@ dat <- dat |>
     hours = duration / 60,
     .keep = "unused"
   )
-```
 
-```{r}
-#| label: session-indicator-create
-#| include: true
-
+# Create session indicators
 dat <- dat |>
   arrange(pid, time) |>
   mutate(
@@ -165,10 +169,6 @@ dat_sum <- dat |>
     n_session = length(unique(ps)),
     n_obs = n()
   )
-```
-
-```{r}
-#| label: mood-filter
 
 # Include only wellbeing responses that occurred
 # in sessions with both "pre" and "post" measures
@@ -176,6 +176,7 @@ dat <- dat |>
   filter(prompt == "Wellbeing") |>
   select(-prompt)
 
+# Calculate basic data summaries
 dat_sum <- dat |>
   summarize(
     when = "mood",
@@ -308,6 +309,18 @@ dat |>
 
 # Use contrast coding with unit difference
 contrasts(dat$post) <- c(-0.5, 0.5)
+
+# Analyze a subset of participants if required 
+# (for testing etc.; be careful)
+N_SUBSET_PROPORTION <- as.numeric(Sys.getenv("N_SUBSET_PROPORTION", unset = 1))
+dat <- dat |> 
+  filter(
+    pid %in%
+      sample(
+        unique(dat$pid), 
+        size = length(unique(dat$pid)) * N_SUBSET_PROPORTION
+      )
+  )
 
 # Write data for any supplementary notebooks
 write_rds(dat, "data/data.rds")

@@ -1,11 +1,12 @@
 N_CORES <- as.numeric(Sys.getenv("N_CORES", unset = 1))
-N_THREADS <- as.numeric(Sys.getenv("N_THREADS", unset = 2))
 N_ITER <- as.numeric(Sys.getenv("N_ITER", unset = 2000))
-N_SUBSET <- as.numeric(Sys.getenv("N_SUBSET"))
+BRMS_BACKEND <- Sys.getenv("N_SUBSET", unset = "rstan")
+N_THREADS <- as.numeric(Sys.getenv("N_THREADS", unset = 2))
+N_SUBSET_PROPORTION <- as.numeric(Sys.getenv("N_SUBSET", unset = 1))
 
 options(
   mc.cores = N_CORES,
-  brms.backend = "cmdstanr",
+  brms.backend = BRMS_BACKEND,
   brms.threads = N_THREADS
 )
 
