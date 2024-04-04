@@ -11,3 +11,5 @@ docx: ms.Rmd
 
 supp:
 	quarto render supplementary.qmd
+
+.PHONY: all renv
