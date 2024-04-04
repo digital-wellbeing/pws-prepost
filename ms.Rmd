@@ -312,6 +312,7 @@ contrasts(dat$post) <- c(-0.5, 0.5)
 
 # Analyze a subset of participants if required 
 # (for testing etc.; be careful)
+N_SUBSET_PROPORTION <- as.numeric(Sys.getenv("N_SUBSET_PROPORTION", unset = 1))
 dat <- dat |> 
   filter(
     pid %in%
