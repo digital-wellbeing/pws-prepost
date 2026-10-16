@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+title: 'Code supplement to "Affective uplift during video game play: a naturalistic case study"'
+version: 1.2.1
+license: MIT
+type: software
+abstract: |
+  Do video games affect players' well-being? In this case study, we examined 162,325 intensive longitudinal in-game mood reports from 67,328 play sessions of 8,695 players of the popular game PowerWash Simulator. We compared players' moods at the beginning of play sessions with their moods during play and found that the average player reported 0.034 (0.032, 0.036) visual analog scale (VAS; 0-1) units greater mood during than at the beginning of play sessions. Moreover, we predict that 72.1% (70.8%, 73.5%) of similar players experience this affective uplift during play, and that the bulk of it happens during the first 15 minutes of play. We do not know whether these results indicate causal effects or to what extent they generalize to other games or player populations. Yet, these results based on in-game subjective reports from players of a popular commercially available game suggest good external validity and as such offer a promising glimpse of the scientific value of transparent industry-academia collaborations in understanding the psychological roles of popular digital entertainment.
+message: Please cite as indicated.
+authors:
+  - family-names: Vuorre
+    given-names: Matti
+    orcid: https://orcid.org/0000-0001-5052-066X
+    affiliation: Tilburg University
+  - family-names: Ballou
+    given-names: Nick
+    orcid: https://orcid.org/0000-0003-4126-0696
+    affiliation: University of Oxford
+  - family-names: Hakman
+    given-names: Thomas
+    orcid: https://orcid.org/0009-0009-8292-2482
+    affiliation: University of Oxford
+  - family-names: Magnusson
+    given-names: Kristoffer
+    orcid: https://orcid.org/0000-0003-0713-0556
+    affiliation: Karolinska Institutet
+  - family-names: Przybylski
+    given-names: Andrew
+    orcid: https://orcid.org/0000-0001-5547-2185
+    affiliation: University of Oxford
+date-released: 2024-02-28
+keywords:
+  - psychology
